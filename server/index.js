@@ -85,7 +85,7 @@ app.get("/event", (req, res) => {
 
 });
 
-twitchClient.on("message", (channel, tags, message, self) => {
+twitchClient.on("message", async (channel, tags, message, self) => {
 
     if (self) return;
 
@@ -287,62 +287,84 @@ twitchClient.on("message", (channel, tags, message, self) => {
 
     }
 
-    if (message === "!accept") {
+if (message === "!accept") {
 
-        if (channelData.state !== "awaiting_mod") {
+    if (channelData.state !== "awaiting_mod") {
+
+        return;
+
+    }
+
+    const isModerator =
+        tags.mod ||
+        tags.badges?.broadcaster;
+
+    if (!isModerator) {
 
             return;
-
+    
         }
-
-        const isModerator =
-            tags.mod ||
-            tags.badges?.broadcaster;
-
-        if (!isModerator) {
-
-            return;
-
-        }
-
+    
         const vote = channelData.activeVote;
-
+    
         const yes = vote.yesVotes.length;
-
+    
         const no = vote.noVotes.length;
-
-        twitchClient.say(
-            channel,
-            `/me ${vote.target} petición por @${vote.requester} - ${yes} votos`
-        );
-
-        twitchClient.say(
-            channel,
-            `🔨 @${vote.target} ha sido baneado. (${yes}/${no})`
-        );
-
+    
+        try {
+    
+            await twitchClient.ban(
+                channel,
+                vote.target,
+                `Petición por @${vote.requester} - ${yes} votos`
+            );
+    
+            console.log(
+                "BAN SUCCESS:",
+                vote.target
+            );
+    
+            twitchClient.say(
+                channel,
+                `🔨 @${vote.target} ha sido baneado. (${yes}/${no})`
+            );
+    
+        } catch (error) {
+    
+            console.error(
+                "BAN FAILED:",
+                error
+            );
+    
+            twitchClient.say(
+                channel,
+                `❌ No se pudo ejecutar el ban de @${vote.target}`
+            );
+    
+        }
+    
         addHistory(cleanChannel, {
-
+    
             result: "banned",
-
+    
             requester: vote.requester,
-
+    
             target: vote.target,
-
+    
             yes,
-
+    
             no,
-
+    
             moderator: username,
-
+    
             date: Date.now()
-
+    
         });
-
+    
         finishVote(cleanChannel);
-
+    
         startCooldown(cleanChannel);
-
+    
     }
 
 });
