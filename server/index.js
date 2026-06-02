@@ -74,25 +74,11 @@ app.get("/event", (req, res) => {
 
     const channel = req.query.channel;
 
-    if (!channel) {
-
-        return res.status(400).json({
-            error: "channel required"
-        });
-
-    }
-
-    if (!CONFIG.ALLOWED_CHANNELS.includes(channel)) {
-
-        return res.status(403).json({
-            error: "channel not allowed"
-        });
-
-    }
-
-    const channelData = getChannel(channel);
-
-    res.json(channelData);
+    return res.json({
+        received: channel,
+        allowedChannels: CONFIG.ALLOWED_CHANNELS,
+        includes: CONFIG.ALLOWED_CHANNELS.includes(channel)
+    });
 
 });
 
