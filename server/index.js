@@ -313,7 +313,7 @@ twitchClient.on("message", (channel, tags, message, self) => {
 
         twitchClient.say(
             channel,
-            `/ban ${vote.target} petición por @${vote.requester} - ${yes} votos`
+            `/me ${vote.target} petición por @${vote.requester} - ${yes} votos`
         );
 
         twitchClient.say(
