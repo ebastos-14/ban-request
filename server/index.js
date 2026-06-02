@@ -1,20 +1,14 @@
 import express from "express";
 import tmi from "tmi.js";
 import { CONFIG } from "./config.js";
-import {
-    getChannel,
-    createVote,
-    finishVote,
-    startCooldown,
-    addHistory
-} from "./state.js";
+import { getChannel } from "./state.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 /*
 |--------------------------------------------------------------------------
-| TWITCH CLIENT (CHAT)
+| TWITCH CLIENT
 |--------------------------------------------------------------------------
 */
 
@@ -26,82 +20,59 @@ const twitchClient = new tmi.Client({
     channels: CONFIG.ALLOWED_CHANNELS
 });
 
-twitchClient.connect();
+twitchClient.connect()
+    .then(() => console.log("Connected to Twitch"))
+    .catch(err => console.error("Twitch error:", err));
 
 /*
 |--------------------------------------------------------------------------
-| HELIX HELPERS
+| HELPERS
 |--------------------------------------------------------------------------
 */
 
-async function getUserId(username) {
-
-    const res = await fetch(
-        `https://api.twitch.tv/helix/users?login=${username}`,
-        {
-            headers: {
-                "Client-ID": process.env.TWITCH_CLIENT_ID,
-                "Authorization": `Bearer ${process.env.TWITCH_APP_TOKEN}`
-            }
-        }
-    );
-
-    const json = await res.json();
-
-    return json.data?.[0]?.id;
+function normalizeChannel(channel) {
+    return channel.replace(/^#/, "").toLowerCase();
 }
 
-async function banUser(broadcasterId, moderatorId, userId, reason) {
+/*
+|--------------------------------------------------------------------------
+| DIRECT BAN TEST (NEW)
+|--------------------------------------------------------------------------
+*/
 
-    const res = await fetch(
-        `https://api.twitch.tv/helix/moderation/bans?broadcaster_id=${broadcasterId}&moderator_id=${moderatorId}`,
-        {
-            method: "POST",
-            headers: {
-                "Client-ID": process.env.TWITCH_CLIENT_ID,
-                "Authorization": `Bearer ${process.env.TWITCH_APP_TOKEN}`,
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                data: {
-                    user_id: userId,
-                    reason
-                }
-            })
-        }
-    );
+async function directBan(channel, target, requester) {
 
-    if (!res.ok) {
+    try {
 
-        const err = await res.text();
+        console.log(`[TEST BAN] ${target} requested by ${requester}`);
 
-        throw new Error(err);
+        // método más estable actualmente en TMI
+        await twitchClient.say(
+            channel,
+            `/ban ${target} Petición por @${requester}`
+        );
 
+        console.log(`[TEST BAN SUCCESS] ${target}`);
+
+        twitchClient.say(
+            channel,
+            `🔨 TEST: @${target} baneado por petición de @${requester}`
+        );
+
+    } catch (err) {
+
+        console.error("[TEST BAN FAILED]", err);
+
+        twitchClient.say(
+            channel,
+            `❌ TEST BAN FALLÓ para @${target}`
+        );
     }
-
-    return res.json();
 }
 
 /*
 |--------------------------------------------------------------------------
-| CHANNEL EVENT API
-|--------------------------------------------------------------------------
-*/
-
-app.get("/event", (req, res) => {
-
-    const channel = req.query.channel;
-
-    const normalized = channel
-        ?.replace(/^#/, "")
-        .toLowerCase();
-
-    res.json(getChannel(normalized));
-});
-
-/*
-|--------------------------------------------------------------------------
-| CHAT SYSTEM
+| CHAT HANDLER
 |--------------------------------------------------------------------------
 */
 
@@ -109,206 +80,81 @@ twitchClient.on("message", async (channel, tags, message, self) => {
 
     if (self) return;
 
-    const cleanChannel = channel.replace(/^#/, "").toLowerCase();
-    const channelData = getChannel(cleanChannel);
-    const username = tags.username.toLowerCase();
+    const cleanChannel = normalizeChannel(channel);
+    const user = tags.username;
+
+    console.log({ channel, user, message });
 
     /*
     |--------------------------------------------------------------------------
-    | REQUEST BAN
+    | 🔥 TEST COMMAND (NEW)
     |--------------------------------------------------------------------------
+    | Uso: !reqban usuario
     */
 
-    if (message.startsWith("!requestban ")) {
-
-        if (channelData.state !== "idle") return;
-
-        if (Date.now() < channelData.cooldownUntil) return;
+    if (message.startsWith("!reqban ")) {
 
         const target = message.split(" ")[1]?.replace("@", "");
 
         if (!target) return;
 
-        createVote(cleanChannel, username, target);
-
         twitchClient.say(
             channel,
-            `⚖️ Juicio iniciado contra @${target} por @${username} (60s)`
+            `⚠️ TEST BAN ejecutando para @${target}...`
         );
 
-        setTimeout(() => runVoteResult(cleanChannel, channel), 60000);
+        await directBan(channel, target, user);
 
         return;
     }
 
     /*
     |--------------------------------------------------------------------------
-    | VOTES
+    | VOTING SYSTEM (SIMPLIFIED PLACEHOLDER)
     |--------------------------------------------------------------------------
     */
 
     if (message === "!votosi") {
-
-        if (channelData.state !== "voting") return;
-
-        channelData.activeVote.noVotes =
-            channelData.activeVote.noVotes.filter(u => u !== username);
-
-        if (!channelData.activeVote.yesVotes.includes(username)) {
-            channelData.activeVote.yesVotes.push(username);
-        }
-
+        twitchClient.say(channel, `👍 voto SI registrado`);
         return;
     }
 
     if (message === "!votono") {
-
-        if (channelData.state !== "voting") return;
-
-        channelData.activeVote.yesVotes =
-            channelData.activeVote.yesVotes.filter(u => u !== username);
-
-        if (!channelData.activeVote.noVotes.includes(username)) {
-            channelData.activeVote.noVotes.push(username);
-        }
-
+        twitchClient.say(channel, `👎 voto NO registrado`);
         return;
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | ACCEPT MOD
-    |--------------------------------------------------------------------------
-    */
-
-    if (message === "!accept") {
-
-        if (channelData.state !== "awaiting_mod") return;
-
-        const isMod =
-            tags.mod ||
-            tags.badges?.broadcaster;
-
-        if (!isMod) return;
-
-        const vote = channelData.activeVote;
-
-        const yes = vote.yesVotes.length;
-        const no = vote.noVotes.length;
-
-        try {
-
-            const broadcasterId = process.env.TWITCH_BROADCASTER_ID;
-            const moderatorId = process.env.TWITCH_MODERATOR_ID;
-
-            const targetId = await getUserId(vote.target);
-
-            await banUser(
-                broadcasterId,
-                moderatorId,
-                targetId,
-                `Petición por @${vote.requester} - ${yes} votos`
-            );
-
-            twitchClient.say(
-                channel,
-                `🔨 @${vote.target} ha sido baneado (${yes}/${no})`
-            );
-
-        } catch (err) {
-
-            console.error("BAN FAILED:", err.message);
-
-            twitchClient.say(
-                channel,
-                `❌ No se pudo banear a @${vote.target}`
-            );
-
-            return;
-        }
-
-        finishVote(cleanChannel);
-        startCooldown(cleanChannel);
-
     }
 
 });
 
 /*
 |--------------------------------------------------------------------------
-| VOTE RESULT
+| API (OVERLAY READY)
 |--------------------------------------------------------------------------
 */
 
-function runVoteResult(cleanChannel, channel) {
+app.get("/", (req, res) => {
+    res.send("Community Ban Bot Online");
+});
 
-    const data = getChannel(cleanChannel);
+app.get("/event", (req, res) => {
 
-    if (!data.activeVote) return;
+    const channel = req.query.channel;
 
-    const yes = data.activeVote.yesVotes.length;
-    const no = data.activeVote.noVotes.length;
-
-    const vote = data.activeVote;
-
-    if (yes > no) {
-
-        data.state = "awaiting_mod";
-
-        twitchClient.say(
-            channel,
-            `⚖️ Resultado ${yes}-${no}. Esperando !accept`
-        );
-
-        return;
+    if (!channel) {
+        return res.status(400).json({ error: "channel required" });
     }
 
-    if (no > yes) {
+    const data = getChannel(normalizeChannel(channel));
 
-        twitchClient.say(
-            channel,
-            `🛡️ @${vote.target} protegido (${yes}/${no})`
-        );
-
-        addHistory(cleanChannel, {
-            result: "protected",
-            requester: vote.requester,
-            target: vote.target,
-            yes,
-            no,
-            date: Date.now()
-        });
-
-        finishVote(cleanChannel);
-        startCooldown(cleanChannel);
-
-        return;
-    }
-
-    twitchClient.say(
-        channel,
-        `⚖️ Empate ${yes}-${no}. Sin acción.`
-    );
-
-    addHistory(cleanChannel, {
-        result: "tie",
-        requester: vote.requester,
-        target: vote.target,
-        yes,
-        no,
-        date: Date.now()
-    });
-
-    finishVote(cleanChannel);
-    startCooldown(cleanChannel);
-}
+    res.json(data);
+});
 
 /*
 |--------------------------------------------------------------------------
-| SERVER
+| START SERVER
 |--------------------------------------------------------------------------
 */
 
 app.listen(PORT, () => {
-    console.log("Server running on", PORT);
+    console.log(`Server running on port ${PORT}`);
 });
