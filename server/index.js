@@ -19,21 +19,11 @@ const twitchClient = new tmi.Client({
     channels: CONFIG.ALLOWED_CHANNELS
 });
 
-twitchClient.connect()
-    .then(() => console.log("Connected to Twitch"))
-    .catch(err => console.error("Twitch error:", err));
+twitchClient.connect();
 
 /*
 |--------------------------------------------------------------------------
-| HELPERS
-|--------------------------------------------------------------------------
-*/
-
-const normalize = (c) => c.replace(/^#/, "").toLowerCase();
-
-/*
-|--------------------------------------------------------------------------
-| STATE (por canal en memoria)
+| STATE
 |--------------------------------------------------------------------------
 */
 
@@ -41,14 +31,15 @@ const channelState = new Map();
 
 function getState(channel) {
 
-    const key = normalize(channel);
+    const key = channel.replace(/^#/, "").toLowerCase();
 
     if (!channelState.has(key)) {
 
         channelState.set(key, {
             state: "idle",
             activeVote: null,
-            cooldownUntil: 0
+            cooldownUntil: 0,
+            timeout: null
         });
 
     }
@@ -58,7 +49,7 @@ function getState(channel) {
 
 /*
 |--------------------------------------------------------------------------
-| TWITCH API HELPERS
+| TWITCH API
 |--------------------------------------------------------------------------
 */
 
@@ -78,9 +69,21 @@ async function getUserId(login) {
     return json.data?.[0]?.id;
 }
 
+async function isModerator(login, channelLogin) {
+
+    return login === channelLogin; 
+    // simplificación: broadcaster = protegido automáticamente
+}
+
+/*
+|--------------------------------------------------------------------------
+| BAN REAL
+|--------------------------------------------------------------------------
+*/
+
 async function banUser(channel, target, requester) {
 
-    const broadcasterLogin = normalize(channel);
+    const broadcasterLogin = channel.replace(/^#/, "");
 
     const broadcasterId = await getUserId(broadcasterLogin);
     const moderatorId = await getUserId(CONFIG.BOT_USERNAME);
@@ -105,75 +108,49 @@ async function banUser(channel, target, requester) {
     );
 
     if (!res.ok) {
-        const err = await res.text();
-        throw new Error(err);
+        throw new Error(await res.text());
     }
-
-    console.log("[BAN OK]", target);
 }
 
 /*
 |--------------------------------------------------------------------------
-| VOTE START
+| END / CANCEL LOGIC
 |--------------------------------------------------------------------------
 */
 
-function startVote(state, target, requester) {
+function clearVote(state) {
 
-    state.state = "voting";
+    state.state = "idle";
+    state.activeVote = null;
 
-    state.activeVote = {
-        target,
-        requester,
-        yes: new Set(),
-        no: new Set()
-    };
+    if (state.timeout) {
+        clearTimeout(state.timeout);
+        state.timeout = null;
+    }
 }
 
 /*
 |--------------------------------------------------------------------------
-| END VOTE
+| VOTE END (AUTO TIMEOUT 5 MIN CONFIRM)
 |--------------------------------------------------------------------------
 */
 
-async function endVote(channel, state) {
+function startConfirmTimeout(channel, state) {
 
-    const vote = state.activeVote;
+    if (state.timeout) clearTimeout(state.timeout);
 
-    if (!vote) return;
+    state.timeout = setTimeout(() => {
 
-    const yes = vote.yes.size;
-    const no = vote.no.size;
-
-    if (yes > no) {
-
-        state.state = "awaiting_mod";
+        if (state.state !== "awaiting_mod") return;
 
         twitchClient.say(
             channel,
-            `⚖️ Resultado ${yes}-${no}. Esperando !accept`
+            `⏱️ Sin respuesta del moderador. Caso cancelado.`
         );
 
-    } else if (no > yes) {
+        clearVote(state);
 
-        twitchClient.say(
-            channel,
-            `🛡️ @${vote.target} protegido (${yes}-${no})`
-        );
-
-        state.state = "idle";
-        state.activeVote = null;
-
-    } else {
-
-        twitchClient.say(
-            channel,
-            `⚖️ Empate ${yes}-${no}. Sin acción`
-        );
-
-        state.state = "idle";
-        state.activeVote = null;
-    }
+    }, 5 * 60 * 1000);
 }
 
 /*
@@ -187,6 +164,7 @@ twitchClient.on("message", async (channel, tags, message, self) => {
     if (self) return;
 
     const user = tags.username;
+    const channelLogin = channel.replace(/^#/, "").toLowerCase();
     const state = getState(channel);
 
     /*
@@ -203,15 +181,66 @@ twitchClient.on("message", async (channel, tags, message, self) => {
 
         if (!target) return;
 
-        startVote(state, target, user);
+        // 🚨 PROTECCIÓN: NO BANEAR MOD / BROADCASTER
+        const isMod =
+            tags.mod ||
+            tags.badges?.broadcaster;
+
+        if (isMod || target === CONFIG.BOT_USERNAME) {
+
+            twitchClient.say(
+                channel,
+                `🛡️ @${target} está protegido. Caso cancelado.`
+            );
+
+            state.state = "idle";
+
+            return;
+        }
+
+        state.state = "voting";
+
+        state.activeVote = {
+            target,
+            requester: user,
+            yes: new Set(),
+            no: new Set()
+        };
 
         twitchClient.say(
             channel,
-            `⚖️ Juicio iniciado contra @${target} por @${user} (60s)`
+            `⚖️ Juicio contra @${target} iniciado por @${user} (60s)`
         );
 
         setTimeout(() => {
-            endVote(channel, state);
+
+            const vote = state.activeVote;
+            if (!vote) return;
+
+            const yes = vote.yes.size;
+            const no = vote.no.size;
+
+            if (yes > no) {
+
+                state.state = "awaiting_mod";
+
+                twitchClient.say(
+                    channel,
+                    `⚖️ Resultado ${yes}-${no}. Esperando !accept o !cancel`
+                );
+
+                startConfirmTimeout(channel, state);
+
+            } else {
+
+                twitchClient.say(
+                    channel,
+                    `🛡️ Protegido (${yes}-${no})`
+                );
+
+                clearVote(state);
+            }
+
         }, 60000);
 
         return;
@@ -227,10 +256,8 @@ twitchClient.on("message", async (channel, tags, message, self) => {
 
         if (state.state !== "voting") return;
 
-        const vote = state.activeVote;
-
-        vote.no.delete(user);
-        vote.yes.add(user);
+        state.activeVote.no.delete(user);
+        state.activeVote.yes.add(user);
 
         return;
     }
@@ -239,10 +266,8 @@ twitchClient.on("message", async (channel, tags, message, self) => {
 
         if (state.state !== "voting") return;
 
-        const vote = state.activeVote;
-
-        vote.yes.delete(user);
-        vote.no.add(user);
+        state.activeVote.yes.delete(user);
+        state.activeVote.no.add(user);
 
         return;
     }
@@ -265,36 +290,53 @@ twitchClient.on("message", async (channel, tags, message, self) => {
 
         const vote = state.activeVote;
 
-        const yes = vote.yes.size;
-        const no = vote.no.size;
-
         try {
 
             await banUser(channel, vote.target, vote.requester);
 
             twitchClient.say(
                 channel,
-                `🔨 @${vote.target} ha sido baneado (${yes}/${no})`
+                `🔨 @${vote.target} baneado por decisión del mod`
             );
 
         } catch (err) {
 
-            console.error("[BAN FAIL]", err.message);
-
             twitchClient.say(
                 channel,
-                `❌ No se pudo banear a @${vote.target}`
+                `❌ Error al banear @${vote.target}`
             );
         }
 
-        state.state = "idle";
-        state.activeVote = null;
+        clearVote(state);
+
+        return;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | MOD CANCEL
+    |--------------------------------------------------------------------------
+    */
+
+    if (message === "!cancel") {
+
+        const isMod =
+            tags.mod ||
+            tags.badges?.broadcaster;
+
+        if (!isMod) return;
+
+        twitchClient.say(
+            channel,
+            `❌ Caso cancelado por moderación`
+        );
+
+        clearVote(state);
 
         return;
     }
 
 });
-
 /*
 |--------------------------------------------------------------------------
 | SERVER
