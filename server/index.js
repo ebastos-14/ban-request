@@ -38,8 +38,8 @@ function getState(channel) {
         channelState.set(key, {
             state: "idle",
             activeVote: null,
-            timeout: null,
-            startedAt: null
+            startedAt: null,
+            timeout: null
         });
     }
 
@@ -62,7 +62,7 @@ function setCooldown(channel, ms = 120000) {
 
 /*
 |--------------------------------------------------------------------------
-| TWITCH API
+| BAN
 |--------------------------------------------------------------------------
 */
 
@@ -81,12 +81,6 @@ async function getUserId(login) {
     const json = await res.json();
     return json.data?.[0]?.id;
 }
-
-/*
-|--------------------------------------------------------------------------
-| BAN REAL
-|--------------------------------------------------------------------------
-*/
 
 async function banUser(channel, target, requester) {
 
@@ -121,7 +115,7 @@ async function banUser(channel, target, requester) {
 
 /*
 |--------------------------------------------------------------------------
-| CLEAN STATE
+| RESET
 |--------------------------------------------------------------------------
 */
 
@@ -139,7 +133,7 @@ function clearState(state) {
 
 /*
 |--------------------------------------------------------------------------
-| CHAT (TU LOGICA SIN CAMBIOS)
+| CHAT
 |--------------------------------------------------------------------------
 */
 
@@ -161,11 +155,7 @@ twitchClient.on("message", async (channel, tags, message, self) => {
     if (message.startsWith("!requestban ")) {
 
         if (state.state !== "idle") return;
-
-        if (isOnCooldown(channelKey)) {
-            twitchClient.say(channel, ``);
-            return;
-        }
+        if (isOnCooldown(channelKey)) return;
 
         const target = message.split(" ")[1]?.replace("@", "").toLowerCase();
         if (!target) return;
@@ -182,7 +172,7 @@ twitchClient.on("message", async (channel, tags, message, self) => {
 
         twitchClient.say(
             channel,
-            `⏲️ 60s ⏲️ @${user} ha iniciado un juicio contra @${target}... ⚖️ !voteban o !votedef ⚖️`
+            `⏲️ 60s ⏲️ @${user} ha iniciado un juicio contra @${target} ⚖️`
         );
 
         setTimeout(() => {
@@ -199,14 +189,14 @@ twitchClient.on("message", async (channel, tags, message, self) => {
 
                 twitchClient.say(
                     channel,
-                    `🛎️ Si ${yes}/${no} No 🛎️ Esperando confirmacion del mod...`
+                    `🛎️ Resultado ${yes}/${no}. Esperando !accept o !cancel`
                 );
 
                 state.timeout = setTimeout(() => {
 
                     twitchClient.say(
                         channel,
-                        `⌛ Zzz ⌛ @${target} ha sido salvado por la campana`
+                        `⌛ Tiempo agotado. Caso cancelado`
                     );
 
                     setCooldown(channelKey);
@@ -218,7 +208,7 @@ twitchClient.on("message", async (channel, tags, message, self) => {
 
                 twitchClient.say(
                     channel,
-                    `🛡️ GG 🛡️ @${target} ha sido protegido por el chat (Si ${yes}/${no} No)`
+                    `🛡️ Protegido (${yes}/${no})`
                 );
 
                 setCooldown(channelKey);
@@ -242,7 +232,6 @@ twitchClient.on("message", async (channel, tags, message, self) => {
 
         state.activeVote.no.delete(user);
         state.activeVote.yes.add(user);
-
         return;
     }
 
@@ -252,7 +241,6 @@ twitchClient.on("message", async (channel, tags, message, self) => {
 
         state.activeVote.yes.delete(user);
         state.activeVote.no.add(user);
-
         return;
     }
 
@@ -274,14 +262,14 @@ twitchClient.on("message", async (channel, tags, message, self) => {
 
             twitchClient.say(
                 channel,
-                `☠️ F ☠️ @${vote.target} ha sido baneado por decisión del chat`
+                `☠️ @${vote.target} baneado por el chat`
             );
 
-        } catch (err) {
+        } catch (e) {
 
             twitchClient.say(
                 channel,
-                `❗Equisde❓No se pudo banear a @${vote.target}`
+                `❌ Error al banear @${vote.target}`
             );
         }
 
@@ -303,7 +291,7 @@ twitchClient.on("message", async (channel, tags, message, self) => {
 
         twitchClient.say(
             channel,
-            `⚔️ Bueno ⚔️ el mod ha cancelado el baneo`
+            `⚔️ Cancelado por mod`
         );
 
         setCooldown(channelKey);
@@ -316,7 +304,7 @@ twitchClient.on("message", async (channel, tags, message, self) => {
 
 /*
 |--------------------------------------------------------------------------
-| OVERLAY API (NUEVO)
+| OVERLAY API
 |--------------------------------------------------------------------------
 */
 
@@ -331,6 +319,7 @@ app.get("/event", (req, res) => {
     const no = vote?.no?.size || 0;
 
     const total = yes + no;
+
     const noRatio = total === 0 ? 0.5 : no / total;
 
     const timeLeft = state.startedAt
@@ -344,8 +333,10 @@ app.get("/event", (req, res) => {
         requester: vote?.requester || null,
         yes,
         no,
+        total,
+        noRatio,
         timeLeft,
-        noRatio
+        active: !!vote
     });
 });
 
