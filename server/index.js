@@ -19,7 +19,9 @@ const twitchClient = new tmi.Client({
     channels: CONFIG.ALLOWED_CHANNELS
 });
 
-twitchClient.connect();
+twitchClient.connect()
+    .then(() => console.log("Connected to Twitch"))
+    .catch(err => console.error("Twitch error:", err));
 
 /*
 |--------------------------------------------------------------------------
@@ -28,7 +30,6 @@ twitchClient.connect();
 */
 
 const channelState = new Map();
-const knownMods = new Map();
 const cooldowns = new Map();
 
 function getState(channel) {
@@ -36,27 +37,14 @@ function getState(channel) {
     const key = channel.replace(/^#/, "").toLowerCase();
 
     if (!channelState.has(key)) {
-
         channelState.set(key, {
             state: "idle",
             activeVote: null,
             timeout: null
         });
-
     }
 
     return channelState.get(key);
-}
-
-function getModSet(channel) {
-
-    const key = channel.replace(/^#/, "").toLowerCase();
-
-    if (!knownMods.has(key)) {
-        knownMods.set(key, new Set());
-    }
-
-    return knownMods.get(key);
 }
 
 /*
@@ -66,8 +54,7 @@ function getModSet(channel) {
 */
 
 function isOnCooldown(channel) {
-    const now = Date.now();
-    return (cooldowns.get(channel) || 0) > now;
+    return (cooldowns.get(channel) || 0) > Date.now();
 }
 
 function setCooldown(channel, ms = 120000) {
@@ -122,7 +109,7 @@ async function banUser(channel, target, requester) {
             body: JSON.stringify({
                 data: {
                     user_id: userId,
-                    reason: `Petición por @${requester}`
+                    reason: `Votación del chat por @${requester}`
                 }
             })
         }
@@ -135,11 +122,11 @@ async function banUser(channel, target, requester) {
 
 /*
 |--------------------------------------------------------------------------
-| CLEANUP
+| CLEAN STATE
 |--------------------------------------------------------------------------
 */
 
-function clearVote(state) {
+function clearState(state) {
 
     state.state = "idle";
     state.activeVote = null;
@@ -164,17 +151,6 @@ twitchClient.on("message", async (channel, tags, message, self) => {
     const channelKey = channel.replace(/^#/, "").toLowerCase();
 
     const state = getState(channel);
-    const modSet = getModSet(channel);
-
-    /*
-    |--------------------------------------------------------------------------
-    | TRACK MODS
-    |--------------------------------------------------------------------------
-    */
-
-    if (tags.mod || tags.badges?.broadcaster) {
-        modSet.add(user);
-    }
 
     /*
     |--------------------------------------------------------------------------
@@ -194,25 +170,6 @@ twitchClient.on("message", async (channel, tags, message, self) => {
         const target = message.split(" ")[1]?.replace("@", "").toLowerCase();
         if (!target) return;
 
-        const targetIsProtected =
-            modSet.has(target) ||
-            target === CONFIG.BOT_USERNAME.toLowerCase();
-
-        // 🚨 SI ES MOD → CANCEL INMEDIATO + CD
-        if (targetIsProtected) {
-
-            twitchClient.say(
-                channel,
-                `🛡️ @${target} es moderador. Caso cancelado.`
-            );
-
-            setCooldown(channelKey); // 🔥 SIEMPRE CD
-            clearVote(state);
-
-            return;
-        }
-
-        // ✔ INICIAR VOTACIÓN
         state.state = "voting";
 
         state.activeVote = {
@@ -235,7 +192,6 @@ twitchClient.on("message", async (channel, tags, message, self) => {
             const yes = vote.yes.size;
             const no = vote.no.size;
 
-            // ✔ GANÓ BAN
             if (yes > no) {
 
                 state.state = "awaiting_mod";
@@ -252,8 +208,8 @@ twitchClient.on("message", async (channel, tags, message, self) => {
                         `⏱️ Sin respuesta del mod. Caso cancelado.`
                     );
 
-                    setCooldown(channelKey); // 🔥 CD
-                    clearVote(state);
+                    setCooldown(channelKey);
+                    clearState(state);
 
                 }, 5 * 60 * 1000);
 
@@ -264,8 +220,8 @@ twitchClient.on("message", async (channel, tags, message, self) => {
                     `🛡️ Protegido (${yes}-${no})`
                 );
 
-                setCooldown(channelKey); // 🔥 CD
-                clearVote(state);
+                setCooldown(channelKey);
+                clearState(state);
             }
 
         }, 60000);
@@ -301,19 +257,13 @@ twitchClient.on("message", async (channel, tags, message, self) => {
 
     /*
     |--------------------------------------------------------------------------
-    | MOD ACCEPT
+    | ACCEPT (FORZAR BAN)
     |--------------------------------------------------------------------------
     */
 
     if (message === "!accept") {
 
         if (state.state !== "awaiting_mod") return;
-
-        const isMod =
-            tags.mod ||
-            tags.badges?.broadcaster;
-
-        if (!isMod) return;
 
         const vote = state.activeVote;
 
@@ -323,7 +273,7 @@ twitchClient.on("message", async (channel, tags, message, self) => {
 
             twitchClient.say(
                 channel,
-                `🔨 @${vote.target} baneado por decisión del chat`
+                `🔨 @${vote.target} ha sido baneado por decisión del chat`
             );
 
         } catch (err) {
@@ -334,33 +284,29 @@ twitchClient.on("message", async (channel, tags, message, self) => {
             );
         }
 
-        setCooldown(channelKey); // 🔥 SIEMPRE CD
-        clearVote(state);
+        setCooldown(channelKey);
+        clearState(state);
 
         return;
     }
 
     /*
     |--------------------------------------------------------------------------
-    | MOD CANCEL
+    | CANCEL
     |--------------------------------------------------------------------------
     */
 
     if (message === "!cancel") {
 
-        const isMod =
-            tags.mod ||
-            tags.badges?.broadcaster;
-
-        if (!isMod) return;
+        if (state.state !== "awaiting_mod") return;
 
         twitchClient.say(
             channel,
-            `❌ Caso cancelado por moderación`
+            `❌ Caso cancelado`
         );
 
-        setCooldown(channelKey); // 🔥 SIEMPRE CD
-        clearVote(state);
+        setCooldown(channelKey);
+        clearState(state);
 
         return;
     }
