@@ -1,14 +1,13 @@
 import express from "express";
 import tmi from "tmi.js";
 import { CONFIG } from "./config.js";
-import { getChannel } from "./state.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 /*
 |--------------------------------------------------------------------------
-| TWITCH CLIENT
+| TWITCH CLIENT (CHAT)
 |--------------------------------------------------------------------------
 */
 
@@ -30,49 +29,89 @@ twitchClient.connect()
 |--------------------------------------------------------------------------
 */
 
-function normalizeChannel(channel) {
-    return channel.replace(/^#/, "").toLowerCase();
+const normalize = (c) => c.replace(/^#/, "").toLowerCase();
+
+async function getUserId(login) {
+
+    const res = await fetch(
+        `https://api.twitch.tv/helix/users?login=${login}`,
+        {
+            headers: {
+                "Client-ID": process.env.TWITCH_CLIENT_ID,
+                "Authorization": `Bearer ${process.env.TWITCH_APP_TOKEN}`
+            }
+        }
+    );
+
+    const json = await res.json();
+    return json.data?.[0]?.id;
 }
 
 /*
 |--------------------------------------------------------------------------
-| DIRECT BAN TEST (NEW)
+| REAL BAN (HELIX)
 |--------------------------------------------------------------------------
 */
 
-async function directBan(channel, target, requester) {
+async function banUser(channel, target, requester) {
 
     try {
 
-        console.log(`[TEST BAN] ${target} requested by ${requester}`);
+        const broadcasterLogin = normalize(channel);
 
-        // método más estable actualmente en TMI
-        await twitchClient.say(
-            channel,
-            `/ban ${target} Petición por @${requester}`
+        const broadcasterId = await getUserId(broadcasterLogin);
+        const moderatorId = await getUserId(CONFIG.BOT_USERNAME);
+        const userId = await getUserId(target);
+
+        if (!broadcasterId || !moderatorId || !userId) {
+            throw new Error("Missing IDs (broadcaster/moderator/target)");
+        }
+
+        const res = await fetch(
+            `https://api.twitch.tv/helix/moderation/bans?broadcaster_id=${broadcasterId}&moderator_id=${moderatorId}`,
+            {
+                method: "POST",
+                headers: {
+                    "Client-ID": process.env.TWITCH_CLIENT_ID,
+                    "Authorization": `Bearer ${process.env.TWITCH_APP_TOKEN}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    data: {
+                        user_id: userId,
+                        reason: `TEST BAN por @${requester}`
+                    }
+                })
+            }
         );
 
-        console.log(`[TEST BAN SUCCESS] ${target}`);
+        const text = await res.text();
+
+        if (!res.ok) {
+            throw new Error(text);
+        }
+
+        console.log("[REAL BAN SUCCESS]", target);
 
         twitchClient.say(
             channel,
-            `🔨 TEST: @${target} baneado por petición de @${requester}`
+            `🔨 BAN REAL ejecutado: @${target} (solicitado por @${requester})`
         );
 
     } catch (err) {
 
-        console.error("[TEST BAN FAILED]", err);
+        console.error("[REAL BAN FAILED]", err.message);
 
         twitchClient.say(
             channel,
-            `❌ TEST BAN FALLÓ para @${target}`
+            `❌ BAN FALLÓ para @${target}`
         );
     }
 }
 
 /*
 |--------------------------------------------------------------------------
-| CHAT HANDLER
+| CHAT EVENTS
 |--------------------------------------------------------------------------
 */
 
@@ -80,16 +119,15 @@ twitchClient.on("message", async (channel, tags, message, self) => {
 
     if (self) return;
 
-    const cleanChannel = normalizeChannel(channel);
     const user = tags.username;
 
     console.log({ channel, user, message });
 
     /*
     |--------------------------------------------------------------------------
-    | 🔥 TEST COMMAND (NEW)
+    | TEST BAN COMMAND
     |--------------------------------------------------------------------------
-    | Uso: !reqban usuario
+    | !reqban user
     */
 
     if (message.startsWith("!reqban ")) {
@@ -100,17 +138,17 @@ twitchClient.on("message", async (channel, tags, message, self) => {
 
         twitchClient.say(
             channel,
-            `⚠️ TEST BAN ejecutando para @${target}...`
+            `⚠️ Ejecutando BAN REAL para @${target}...`
         );
 
-        await directBan(channel, target, user);
+        await banUser(channel, target, user);
 
         return;
     }
 
     /*
     |--------------------------------------------------------------------------
-    | VOTING SYSTEM (SIMPLIFIED PLACEHOLDER)
+    | PLACEHOLDER VOTES
     |--------------------------------------------------------------------------
     */
 
@@ -128,33 +166,14 @@ twitchClient.on("message", async (channel, tags, message, self) => {
 
 /*
 |--------------------------------------------------------------------------
-| API (OVERLAY READY)
+| SERVER
 |--------------------------------------------------------------------------
 */
 
 app.get("/", (req, res) => {
-    res.send("Community Ban Bot Online");
+    res.send("Bot online");
 });
-
-app.get("/event", (req, res) => {
-
-    const channel = req.query.channel;
-
-    if (!channel) {
-        return res.status(400).json({ error: "channel required" });
-    }
-
-    const data = getChannel(normalizeChannel(channel));
-
-    res.json(data);
-});
-
-/*
-|--------------------------------------------------------------------------
-| START SERVER
-|--------------------------------------------------------------------------
-*/
 
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log("Server running on", PORT);
 });
