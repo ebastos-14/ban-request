@@ -1,3 +1,4 @@
+console.log("CONFIG CHANNELS:", CONFIG.ALLOWED_CHANNELS);
 import express from "express";
 import tmi from "tmi.js";
 
