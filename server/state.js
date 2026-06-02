@@ -2,7 +2,10 @@ const channels = {};
 
 export function getChannel(channelName) {
 
-    const channel = channelName.toLowerCase();
+    const channel = channelName
+        .replace(/^#/, "")
+        .trim()
+        .toLowerCase();
 
     if (!channels[channel]) {
 
