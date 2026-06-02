@@ -369,7 +369,7 @@ if (message === "!accept") {
     startCooldown(cleanChannel);
 
 }
-```
+``` 
 
 });
 
