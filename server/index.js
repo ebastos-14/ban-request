@@ -57,7 +57,7 @@ function isOnCooldown(channel) {
     return (cooldowns.get(channel) || 0) > Date.now();
 }
 
-function setCooldown(channel, ms = 120000) {
+function setCooldown(channel, ms = 20000) {
     cooldowns.set(channel, Date.now() + ms);
 }
 
@@ -235,7 +235,7 @@ twitchClient.on("message", async (channel, tags, message, self) => {
     |--------------------------------------------------------------------------
     */
 
-    if (message === "!votosi") {
+    if (message === "!voteban") {
 
         if (state.state !== "voting") return;
 
@@ -245,7 +245,7 @@ twitchClient.on("message", async (channel, tags, message, self) => {
         return;
     }
 
-    if (message === "!votono") {
+    if (message === "!votedef") {
 
         if (state.state !== "voting") return;
 
