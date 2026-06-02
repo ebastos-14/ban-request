@@ -7,7 +7,7 @@ const PORT = process.env.PORT || 3000;
 
 /*
 |--------------------------------------------------------------------------
-| TWITCH CLIENT (CHAT)
+| TWITCH CLIENT
 |--------------------------------------------------------------------------
 */
 
@@ -31,6 +31,37 @@ twitchClient.connect()
 
 const normalize = (c) => c.replace(/^#/, "").toLowerCase();
 
+/*
+|--------------------------------------------------------------------------
+| STATE (por canal en memoria)
+|--------------------------------------------------------------------------
+*/
+
+const channelState = new Map();
+
+function getState(channel) {
+
+    const key = normalize(channel);
+
+    if (!channelState.has(key)) {
+
+        channelState.set(key, {
+            state: "idle",
+            activeVote: null,
+            cooldownUntil: 0
+        });
+
+    }
+
+    return channelState.get(key);
+}
+
+/*
+|--------------------------------------------------------------------------
+| TWITCH API HELPERS
+|--------------------------------------------------------------------------
+*/
+
 async function getUserId(login) {
 
     const res = await fetch(
@@ -47,71 +78,107 @@ async function getUserId(login) {
     return json.data?.[0]?.id;
 }
 
+async function banUser(channel, target, requester) {
+
+    const broadcasterLogin = normalize(channel);
+
+    const broadcasterId = await getUserId(broadcasterLogin);
+    const moderatorId = await getUserId(CONFIG.BOT_USERNAME);
+    const userId = await getUserId(target);
+
+    const res = await fetch(
+        `https://api.twitch.tv/helix/moderation/bans?broadcaster_id=${broadcasterId}&moderator_id=${moderatorId}`,
+        {
+            method: "POST",
+            headers: {
+                "Client-ID": process.env.TWITCH_CLIENT_ID,
+                "Authorization": `Bearer ${process.env.TWITCH_APP_TOKEN}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                data: {
+                    user_id: userId,
+                    reason: `Petición por @${requester}`
+                }
+            })
+        }
+    );
+
+    if (!res.ok) {
+        const err = await res.text();
+        throw new Error(err);
+    }
+
+    console.log("[BAN OK]", target);
+}
+
 /*
 |--------------------------------------------------------------------------
-| REAL BAN (HELIX)
+| VOTE START
 |--------------------------------------------------------------------------
 */
 
-async function banUser(channel, target, requester) {
+function startVote(state, target, requester) {
 
-    try {
+    state.state = "voting";
 
-        const broadcasterLogin = normalize(channel);
+    state.activeVote = {
+        target,
+        requester,
+        yes: new Set(),
+        no: new Set()
+    };
+}
 
-        const broadcasterId = await getUserId(broadcasterLogin);
-        const moderatorId = await getUserId(CONFIG.BOT_USERNAME);
-        const userId = await getUserId(target);
+/*
+|--------------------------------------------------------------------------
+| END VOTE
+|--------------------------------------------------------------------------
+*/
 
-        if (!broadcasterId || !moderatorId || !userId) {
-            throw new Error("Missing IDs (broadcaster/moderator/target)");
-        }
+async function endVote(channel, state) {
 
-        const res = await fetch(
-            `https://api.twitch.tv/helix/moderation/bans?broadcaster_id=${broadcasterId}&moderator_id=${moderatorId}`,
-            {
-                method: "POST",
-                headers: {
-                    "Client-ID": process.env.TWITCH_CLIENT_ID,
-                    "Authorization": `Bearer ${process.env.TWITCH_APP_TOKEN}`,
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    data: {
-                        user_id: userId,
-                        reason: `TEST BAN por @${requester}`
-                    }
-                })
-            }
-        );
+    const vote = state.activeVote;
 
-        const text = await res.text();
+    if (!vote) return;
 
-        if (!res.ok) {
-            throw new Error(text);
-        }
+    const yes = vote.yes.size;
+    const no = vote.no.size;
 
-        console.log("[REAL BAN SUCCESS]", target);
+    if (yes > no) {
+
+        state.state = "awaiting_mod";
 
         twitchClient.say(
             channel,
-            `🔨 BAN REAL ejecutado: @${target} (solicitado por @${requester})`
+            `⚖️ Resultado ${yes}-${no}. Esperando !accept`
         );
 
-    } catch (err) {
-
-        console.error("[REAL BAN FAILED]", err.message);
+    } else if (no > yes) {
 
         twitchClient.say(
             channel,
-            `❌ BAN FALLÓ para @${target}`
+            `🛡️ @${vote.target} protegido (${yes}-${no})`
         );
+
+        state.state = "idle";
+        state.activeVote = null;
+
+    } else {
+
+        twitchClient.say(
+            channel,
+            `⚖️ Empate ${yes}-${no}. Sin acción`
+        );
+
+        state.state = "idle";
+        state.activeVote = null;
     }
 }
 
 /*
 |--------------------------------------------------------------------------
-| CHAT EVENTS
+| CHAT
 |--------------------------------------------------------------------------
 */
 
@@ -120,45 +187,109 @@ twitchClient.on("message", async (channel, tags, message, self) => {
     if (self) return;
 
     const user = tags.username;
-
-    console.log({ channel, user, message });
+    const state = getState(channel);
 
     /*
     |--------------------------------------------------------------------------
-    | TEST BAN COMMAND
+    | REQUEST BAN
     |--------------------------------------------------------------------------
-    | !reqban user
     */
 
-    if (message.startsWith("!reqban ")) {
+    if (message.startsWith("!requestban ")) {
+
+        if (state.state !== "idle") return;
 
         const target = message.split(" ")[1]?.replace("@", "");
 
         if (!target) return;
 
+        startVote(state, target, user);
+
         twitchClient.say(
             channel,
-            `⚠️ Ejecutando BAN REAL para @${target}...`
+            `⚖️ Juicio iniciado contra @${target} por @${user} (60s)`
         );
 
-        await banUser(channel, target, user);
+        setTimeout(() => {
+            endVote(channel, state);
+        }, 60000);
 
         return;
     }
 
     /*
     |--------------------------------------------------------------------------
-    | PLACEHOLDER VOTES
+    | VOTES
     |--------------------------------------------------------------------------
     */
 
     if (message === "!votosi") {
-        twitchClient.say(channel, `👍 voto SI registrado`);
+
+        if (state.state !== "voting") return;
+
+        const vote = state.activeVote;
+
+        vote.no.delete(user);
+        vote.yes.add(user);
+
         return;
     }
 
     if (message === "!votono") {
-        twitchClient.say(channel, `👎 voto NO registrado`);
+
+        if (state.state !== "voting") return;
+
+        const vote = state.activeVote;
+
+        vote.yes.delete(user);
+        vote.no.add(user);
+
+        return;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | MOD ACCEPT
+    |--------------------------------------------------------------------------
+    */
+
+    if (message === "!accept") {
+
+        if (state.state !== "awaiting_mod") return;
+
+        const isMod =
+            tags.mod ||
+            tags.badges?.broadcaster;
+
+        if (!isMod) return;
+
+        const vote = state.activeVote;
+
+        const yes = vote.yes.size;
+        const no = vote.no.size;
+
+        try {
+
+            await banUser(channel, vote.target, vote.requester);
+
+            twitchClient.say(
+                channel,
+                `🔨 @${vote.target} ha sido baneado (${yes}/${no})`
+            );
+
+        } catch (err) {
+
+            console.error("[BAN FAIL]", err.message);
+
+            twitchClient.say(
+                channel,
+                `❌ No se pudo banear a @${vote.target}`
+            );
+        }
+
+        state.state = "idle";
+        state.activeVote = null;
+
         return;
     }
 
