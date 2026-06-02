@@ -7,7 +7,7 @@ export const CONFIG = {
     MINIMUM_VOTES: 1,
 
     ALLOWED_CHANNELS: [
-        "ebastos14"
+        "ebastos14_"
     ]
 
 };
