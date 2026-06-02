@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Twitch Judgement Overlay</title>
+
+<style>
+body {
+    margin: 0;
+    background: transparent;
+    font-family: Arial;
+    color: white;
+    overflow: hidden;
+}
+
+.container {
+    width: 100%;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+/* CHANNEL */
+.channel {
+    font-size: 18px;
+    opacity: 0.7;
+    margin-bottom: 10px;
+}
+
+/* TOP COUNTERS */
+.top {
+    font-size: 28px;
+    font-weight: bold;
+}
+
+/* CIRCLE */
+.circleWrap {
+    position: relative;
+    width: 220px;
+    height: 220px;
+    margin-top: 20px;
+}
+
+.circle {
+    width: 220px;
+    height: 220px;
+    border-radius: 50%;
+    background: conic-gradient(
+        blue 0deg 180deg,
+        red 180deg 360deg
+    );
+    position: absolute;
+}
+
+.inner {
+    position: absolute;
+    top: 25px;
+    left: 25px;
+    width: 170px;
+    height: 170px;
+    border-radius: 50%;
+    background: white;
+    color: black;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 48px;
+    font-weight: bold;
+}
+
+/* TARGET */
+.target {
+    margin-top: 20px;
+    font-size: 22px;
+    font-weight: bold;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <div class="channel" id="channel">#canal</div>
+
+    <div class="top">
+        <span id="yes">0</span> / <span id="no">0</span>
+    </div>
+
+    <div class="circleWrap">
+        <div class="circle" id="circle"></div>
+        <div class="inner" id="timer">60</div>
+    </div>
+
+    <div class="target" id="target">Esperando juicio...</div>
+
+</div>
+
+<script>
+
+const channel = "ebastos14_";
+
+async function update() {
+
+    const res = await fetch(`/event?channel=${channel}`);
+    const d = await res.json();
+
+    document.getElementById("channel").innerText = "#" + d.channel;
+
+    document.getElementById("yes").innerText = d.yes;
+    document.getElementById("no").innerText = d.no;
+
+    document.getElementById("timer").innerText = d.timeLeft;
+
+    document.getElementById("target").innerText =
+        d.target ? "Juzgando a @" + d.target : "Esperando juicio...";
+
+    const deg = d.noRatio * 360;
+
+    document.getElementById("circle").style.background =
+        `conic-gradient(
+            blue 0deg ${360 - deg}deg,
+            red ${360 - deg}deg 360deg
+        )`;
+}
+
+setInterval(update, 500);
+update();
+
+</script>
+
+</body>
+</html>
