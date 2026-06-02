@@ -313,10 +313,9 @@ twitchClient.on("message", async (channel, tags, message, self) => {
     
         try {
     
-            await twitchClient.ban(
+            await twitchClient.say(
                 channel,
-                vote.target,
-                `Petición por @${vote.requester} - ${yes} votos`
+                `/ban ${vote.target} Petición por @${vote.requester} - ${yes} votos`
             );
     
             console.log(
