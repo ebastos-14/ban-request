@@ -1,10 +1,12 @@
-export const channels = {};
+const channels = {};
 
 export function getChannel(channelName) {
 
-    if (!channels[channelName]) {
+    const channel = channelName.toLowerCase();
 
-        channels[channelName] = {
+    if (!channels[channel]) {
+
+        channels[channel] = {
 
             state: "idle",
 
@@ -18,6 +20,6 @@ export function getChannel(channelName) {
 
     }
 
-    return channels[channelName];
+    return channels[channel];
 
 }
