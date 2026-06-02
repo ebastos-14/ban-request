@@ -1,9 +1,10 @@
-console.log("CONFIG CHANNELS:", CONFIG.ALLOWED_CHANNELS);
 import express from "express";
 import tmi from "tmi.js";
 
 import { CONFIG } from "./config.js";
 import { getChannel } from "./state.js";
+
+console.log("CONFIG CHANNELS:", CONFIG.ALLOWED_CHANNELS);
 
 const app = express();
 
@@ -43,7 +44,7 @@ twitchClient.connect()
 
 /*
 |--------------------------------------------------------------------------
-| TWITCH CHAT EVENTS
+| CHAT EVENTS
 |--------------------------------------------------------------------------
 */
 
@@ -61,7 +62,7 @@ twitchClient.on("message", (channel, tags, message, self) => {
 
 /*
 |--------------------------------------------------------------------------
-| API ROUTES
+| ROUTES
 |--------------------------------------------------------------------------
 */
 
@@ -75,17 +76,41 @@ app.get("/event", (req, res) => {
 
     const channel = req.query.channel;
 
-    return res.json({
-        received: channel,
-        allowedChannels: CONFIG.ALLOWED_CHANNELS,
-        includes: CONFIG.ALLOWED_CHANNELS.includes(channel)
-    });
+    if (!channel) {
+
+        return res.status(400).json({
+            error: "channel required"
+        });
+
+    }
+
+    const normalizedChannel = channel
+        .toLowerCase()
+        .trim();
+
+    const allowedChannels = CONFIG.ALLOWED_CHANNELS.map(channel =>
+        channel.toLowerCase().trim()
+    );
+
+    if (!allowedChannels.includes(normalizedChannel)) {
+
+        return res.status(403).json({
+            error: "channel not allowed",
+            received: normalizedChannel,
+            allowedChannels
+        });
+
+    }
+
+    const channelData = getChannel(normalizedChannel);
+
+    res.json(channelData);
 
 });
 
 /*
 |--------------------------------------------------------------------------
-| SERVER START
+| SERVER
 |--------------------------------------------------------------------------
 */
 
