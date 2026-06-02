@@ -7,7 +7,8 @@ export const CONFIG = {
     MINIMUM_VOTES: 1,
 
     ALLOWED_CHANNELS: [
-        "ebastos14_"
+        "ebastos14_",
+        "jaciitv"
     ],
 
     BOT_USERNAME: process.env.TWITCH_BOT_USERNAME,
