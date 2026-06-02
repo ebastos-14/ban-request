@@ -19,9 +19,7 @@ const twitchClient = new tmi.Client({
     channels: CONFIG.ALLOWED_CHANNELS
 });
 
-twitchClient.connect()
-    .then(() => console.log("Connected to Twitch"))
-    .catch(err => console.error("Twitch error:", err));
+twitchClient.connect();
 
 /*
 |--------------------------------------------------------------------------
@@ -40,7 +38,8 @@ function getState(channel) {
         channelState.set(key, {
             state: "idle",
             activeVote: null,
-            timeout: null
+            timeout: null,
+            startedAt: null
         });
     }
 
@@ -57,7 +56,7 @@ function isOnCooldown(channel) {
     return (cooldowns.get(channel) || 0) > Date.now();
 }
 
-function setCooldown(channel, ms = 20000) {
+function setCooldown(channel, ms = 120000) {
     cooldowns.set(channel, Date.now() + ms);
 }
 
@@ -130,6 +129,7 @@ function clearState(state) {
 
     state.state = "idle";
     state.activeVote = null;
+    state.startedAt = null;
 
     if (state.timeout) {
         clearTimeout(state.timeout);
@@ -139,7 +139,7 @@ function clearState(state) {
 
 /*
 |--------------------------------------------------------------------------
-| CHAT
+| CHAT (TU LOGICA SIN CAMBIOS)
 |--------------------------------------------------------------------------
 */
 
@@ -171,6 +171,7 @@ twitchClient.on("message", async (channel, tags, message, self) => {
         if (!target) return;
 
         state.state = "voting";
+        state.startedAt = Date.now();
 
         state.activeVote = {
             target,
@@ -257,7 +258,7 @@ twitchClient.on("message", async (channel, tags, message, self) => {
 
     /*
     |--------------------------------------------------------------------------
-    | ACCEPT (FORZAR BAN)
+    | ACCEPT
     |--------------------------------------------------------------------------
     */
 
@@ -311,6 +312,41 @@ twitchClient.on("message", async (channel, tags, message, self) => {
         return;
     }
 
+});
+
+/*
+|--------------------------------------------------------------------------
+| OVERLAY API (NUEVO)
+|--------------------------------------------------------------------------
+*/
+
+app.get("/event", (req, res) => {
+
+    const channel = (req.query.channel || "").toLowerCase();
+    const state = getState("#" + channel);
+
+    const vote = state.activeVote;
+
+    const yes = vote?.yes?.size || 0;
+    const no = vote?.no?.size || 0;
+
+    const total = yes + no;
+    const noRatio = total === 0 ? 0.5 : no / total;
+
+    const timeLeft = state.startedAt
+        ? Math.max(0, 60 - Math.floor((Date.now() - state.startedAt) / 1000))
+        : 0;
+
+    res.json({
+        channel,
+        state: state.state,
+        target: vote?.target || null,
+        requester: vote?.requester || null,
+        yes,
+        no,
+        timeLeft,
+        noRatio
+    });
 });
 
 /*
