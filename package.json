@@ -1,0 +1,14 @@
+{
+  "name": "community-ban-bot",
+  "version": "1.0.0",
+  "description": "Twitch Community Ban Bot",
+  "type": "module",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "tmi.js": "^1.8.5"
+  }
+}
