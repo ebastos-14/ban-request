@@ -74,40 +74,19 @@ app.get("/", (req, res) => {
 
 app.get("/event", (req, res) => {
 
-    const channel = req.query.channel;
+    return res.json({
 
-    if (!channel) {
+        configChannels: CONFIG.ALLOWED_CHANNELS,
 
-        return res.status(400).json({
-            error: "channel required"
-        });
+        firstConfigChannel: CONFIG.ALLOWED_CHANNELS[0],
 
-    }
+        hasHash: CONFIG.ALLOWED_CHANNELS[0].startsWith("#"),
 
-    const normalizedChannel = channel
-        .toLowerCase()
-        .trim();
+        queryChannel: req.query.channel
 
-    const allowedChannels = CONFIG.ALLOWED_CHANNELS.map(channel =>
-        channel.toLowerCase().trim()
-    );
-
-    if (!allowedChannels.includes(normalizedChannel)) {
-
-        return res.status(403).json({
-            error: "channel not allowed",
-            received: normalizedChannel,
-            allowedChannels
-        });
-
-    }
-
-    const channelData = getChannel(normalizedChannel);
-
-    res.json(channelData);
+    });
 
 });
-
 /*
 |--------------------------------------------------------------------------
 | SERVER
