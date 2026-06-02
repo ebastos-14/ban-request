@@ -12,22 +12,39 @@ import {
 } from "./state.js";
 
 const app = express();
+
 const PORT = process.env.PORT || 3000;
 
 const twitchClient = new tmi.Client({
+
     identity: {
+
         username: CONFIG.BOT_USERNAME,
+
         password: CONFIG.OAUTH_TOKEN
+
     },
+
     channels: CONFIG.ALLOWED_CHANNELS
+
 });
 
 twitchClient.connect()
-    .then(() => console.log("Connected to Twitch"))
-    .catch(console.error);
+.then(() => {
+
+    console.log("Connected to Twitch");
+
+})
+.catch(error => {
+
+    console.error("Twitch connection error:", error);
+
+});
 
 app.get("/", (req, res) => {
+
     res.send("Community Ban Bot Online");
+
 });
 
 app.get("/event", (req, res) => {
@@ -35,145 +52,305 @@ app.get("/event", (req, res) => {
     const channel = req.query.channel;
 
     if (!channel) {
-        return res.status(400).json({ error: "channel required" });
+
+        return res.status(400).json({
+            error: "channel required"
+        });
+
     }
 
-    const clean = channel.replace(/^#/, "").toLowerCase();
+    const normalizedChannel = channel
+        .replace(/^#/, "")
+        .trim()
+        .toLowerCase();
 
-    const allowed = CONFIG.ALLOWED_CHANNELS.map(c =>
-        c.replace(/^#/, "").toLowerCase()
+    const allowedChannels = CONFIG.ALLOWED_CHANNELS.map(channel =>
+        channel
+            .replace(/^#/, "")
+            .trim()
+            .toLowerCase()
     );
 
-    if (!allowed.includes(clean)) {
-        return res.status(403).json({ error: "channel not allowed" });
+    if (!allowedChannels.includes(normalizedChannel)) {
+
+        return res.status(403).json({
+            error: "channel not allowed"
+        });
+
     }
 
-    return res.json(getChannel(clean));
-});
+    res.json(
+        getChannel(normalizedChannel)
+    );
 
-/*
-|--------------------------------------------------------------------------
-| CHAT SYSTEM
-|--------------------------------------------------------------------------
-*/
+});
 
 twitchClient.on("message", (channel, tags, message, self) => {
 
     if (self) return;
 
-    const cleanChannel = channel.replace(/^#/, "").toLowerCase();
-    const state = getChannel(cleanChannel);
-    const user = tags.username.toLowerCase();
+    const cleanChannel = channel
+        .replace(/^#/, "")
+        .toLowerCase();
 
-    /*
-    |--------------------------------------------------------------------------
-    | START VOTE
-    |--------------------------------------------------------------------------
-    */
+    const channelData = getChannel(cleanChannel);
+
+    const username = tags.username.toLowerCase();
+
+    console.log({
+        channel,
+        user: username,
+        message
+    });
 
     if (message.startsWith("!requestban ")) {
 
         const now = Date.now();
 
-        if (state.state !== "idle") return;
-        if (now < state.cooldownUntil) return;
+        if (channelData.state !== "idle") {
+
+            return;
+
+        }
+
+        if (now < channelData.cooldownUntil) {
+
+            return;
+
+        }
 
         const target = message
             .split(" ")[1]
             ?.replace("@", "")
             ?.toLowerCase();
 
-        if (!target) return;
+        if (!target) {
 
-        createVote(cleanChannel, user, target);
+            return;
+
+        }
+
+        createVote(
+            cleanChannel,
+            username,
+            target
+        );
 
         twitchClient.say(
             channel,
-            `⚖️ Votación contra @${target} iniciada. 60 segundos.`
+            `⚖️ Votación abierta contra @${target} por solicitud de @${username}. 60s`
         );
 
         setTimeout(() => {
 
-            const s = getChannel(cleanChannel);
+            const currentChannel = getChannel(cleanChannel);
 
-            if (!s.activeVote) return;
+            if (
+                !currentChannel.activeVote ||
+                currentChannel.state !== "voting"
+            ) {
 
-            const yes = s.activeVote.yesVotes.length;
-            const no = s.activeVote.noVotes.length;
-
-            const targetUser = s.activeVote.target;
-
-            let resultMessage = "";
-
-            if (yes > no) {
-
-                resultMessage = `🔨 BAN @${targetUser} aprobado (${yes} vs ${no})`;
-
-            } else if (no > yes) {
-
-                resultMessage = `🛡️ @${targetUser} protegido (${yes} vs ${no})`;
-
-            } else {
-
-                resultMessage = `⚖️ Empate (${yes} vs ${no}). Sin acción.`;
+                return;
 
             }
 
-            twitchClient.say(channel, resultMessage);
+            const yes = currentChannel.activeVote.yesVotes.length;
+
+            const no = currentChannel.activeVote.noVotes.length;
+
+            if (yes > no) {
+
+                currentChannel.state = "awaiting_mod";
+
+                twitchClient.say(
+                    channel,
+                    `⚖️ Resultado: ${yes} a favor y ${no} en contra. Esperando !accept de un moderador.`
+                );
+
+                return;
+
+            }
+
+            if (no > yes) {
+
+                twitchClient.say(
+                    channel,
+                    `🛡️ @${currentChannel.activeVote.target} ha recibido la protección de la comunidad. (${yes}/${no})`
+                );
+
+                addHistory(cleanChannel, {
+
+                    result: "protected",
+
+                    requester: currentChannel.activeVote.requester,
+
+                    target: currentChannel.activeVote.target,
+
+                    yes,
+
+                    no,
+
+                    moderator: null,
+
+                    date: Date.now()
+
+                });
+
+                finishVote(cleanChannel);
+
+                startCooldown(cleanChannel);
+
+                return;
+
+            }
+
+            twitchClient.say(
+                channel,
+                `⚖️ Empate (${yes}/${no}). No se tomará ninguna acción.`
+            );
 
             addHistory(cleanChannel, {
-                requester: s.activeVote.requester,
-                target: targetUser,
+
+                result: "tie",
+
+                requester: currentChannel.activeVote.requester,
+
+                target: currentChannel.activeVote.target,
+
                 yes,
+
                 no,
-                result: yes > no ? "ban" : no > yes ? "protect" : "tie",
+
+                moderator: null,
+
                 date: Date.now()
+
             });
 
             finishVote(cleanChannel);
+
             startCooldown(cleanChannel);
 
-        }, 60000);
+        }, CONFIG.VOTE_DURATION * 1000);
 
         return;
-    }
 
-    /*
-    |--------------------------------------------------------------------------
-    | VOTOS (SILENCIOSOS)
-    |--------------------------------------------------------------------------
-    */
+    }
 
     if (message === "!votosi") {
 
-        if (state.state !== "voting") return;
+        if (channelData.state !== "voting") {
 
-        state.activeVote.noVotes =
-            state.activeVote.noVotes.filter(u => u !== user);
+            return;
 
-        if (!state.activeVote.yesVotes.includes(user)) {
-            state.activeVote.yesVotes.push(user);
+        }
+
+        channelData.activeVote.noVotes =
+            channelData.activeVote.noVotes.filter(
+                user => user !== username
+            );
+
+        if (
+            !channelData.activeVote.yesVotes.includes(username)
+        ) {
+
+            channelData.activeVote.yesVotes.push(username);
+
         }
 
         return;
+
     }
 
     if (message === "!votono") {
 
-        if (state.state !== "voting") return;
+        if (channelData.state !== "voting") {
 
-        state.activeVote.yesVotes =
-            state.activeVote.yesVotes.filter(u => u !== user);
+            return;
 
-        if (!state.activeVote.noVotes.includes(user)) {
-            state.activeVote.noVotes.push(user);
+        }
+
+        channelData.activeVote.yesVotes =
+            channelData.activeVote.yesVotes.filter(
+                user => user !== username
+            );
+
+        if (
+            !channelData.activeVote.noVotes.includes(username)
+        ) {
+
+            channelData.activeVote.noVotes.push(username);
+
         }
 
         return;
+
+    }
+
+    if (message === "!accept") {
+
+        if (channelData.state !== "awaiting_mod") {
+
+            return;
+
+        }
+
+        const isModerator =
+            tags.mod ||
+            tags.badges?.broadcaster;
+
+        if (!isModerator) {
+
+            return;
+
+        }
+
+        const vote = channelData.activeVote;
+
+        const yes = vote.yesVotes.length;
+
+        const no = vote.noVotes.length;
+
+        twitchClient.say(
+            channel,
+            `/ban ${vote.target} petición por @${vote.requester} - ${yes} votos`
+        );
+
+        twitchClient.say(
+            channel,
+            `🔨 @${vote.target} ha sido baneado. (${yes}/${no})`
+        );
+
+        addHistory(cleanChannel, {
+
+            result: "banned",
+
+            requester: vote.requester,
+
+            target: vote.target,
+
+            yes,
+
+            no,
+
+            moderator: username,
+
+            date: Date.now()
+
+        });
+
+        finishVote(cleanChannel);
+
+        startCooldown(cleanChannel);
+
     }
 
 });
 
 app.listen(PORT, () => {
+
     console.log(`Server running on port ${PORT}`);
+
 });
+
+console.log("Bot starting...");
