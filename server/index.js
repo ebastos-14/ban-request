@@ -19,7 +19,9 @@ const twitchClient = new tmi.Client({
     channels: CONFIG.ALLOWED_CHANNELS
 });
 
-twitchClient.connect();
+twitchClient.connect()
+    .then(() => console.log("Connected to Twitch"))
+    .catch(err => console.error("Twitch error:", err));
 
 /*
 |--------------------------------------------------------------------------
@@ -28,6 +30,7 @@ twitchClient.connect();
 */
 
 const channelState = new Map();
+const knownMods = new Map(); // channel -> Set(mods)
 
 function getState(channel) {
 
@@ -38,13 +41,23 @@ function getState(channel) {
         channelState.set(key, {
             state: "idle",
             activeVote: null,
-            cooldownUntil: 0,
             timeout: null
         });
 
     }
 
     return channelState.get(key);
+}
+
+function getModSet(channel) {
+
+    const key = channel.replace(/^#/, "").toLowerCase();
+
+    if (!knownMods.has(key)) {
+        knownMods.set(key, new Set());
+    }
+
+    return knownMods.get(key);
 }
 
 /*
@@ -67,12 +80,6 @@ async function getUserId(login) {
 
     const json = await res.json();
     return json.data?.[0]?.id;
-}
-
-async function isModerator(login, channelLogin) {
-
-    return login === channelLogin; 
-    // simplificación: broadcaster = protegido automáticamente
 }
 
 /*
@@ -114,7 +121,7 @@ async function banUser(channel, target, requester) {
 
 /*
 |--------------------------------------------------------------------------
-| END / CANCEL LOGIC
+| HELPERS
 |--------------------------------------------------------------------------
 */
 
@@ -131,30 +138,6 @@ function clearVote(state) {
 
 /*
 |--------------------------------------------------------------------------
-| VOTE END (AUTO TIMEOUT 5 MIN CONFIRM)
-|--------------------------------------------------------------------------
-*/
-
-function startConfirmTimeout(channel, state) {
-
-    if (state.timeout) clearTimeout(state.timeout);
-
-    state.timeout = setTimeout(() => {
-
-        if (state.state !== "awaiting_mod") return;
-
-        twitchClient.say(
-            channel,
-            `⏱️ Sin respuesta del moderador. Caso cancelado.`
-        );
-
-        clearVote(state);
-
-    }, 5 * 60 * 1000);
-}
-
-/*
-|--------------------------------------------------------------------------
 | CHAT
 |--------------------------------------------------------------------------
 */
@@ -163,9 +146,19 @@ twitchClient.on("message", async (channel, tags, message, self) => {
 
     if (self) return;
 
-    const user = tags.username;
-    const channelLogin = channel.replace(/^#/, "").toLowerCase();
+    const user = tags.username.toLowerCase();
     const state = getState(channel);
+    const modSet = getModSet(channel);
+
+    /*
+    |--------------------------------------------------------------------------
+    | TRACK MODS
+    |--------------------------------------------------------------------------
+    */
+
+    if (tags.mod || tags.badges?.broadcaster) {
+        modSet.add(user);
+    }
 
     /*
     |--------------------------------------------------------------------------
@@ -177,23 +170,23 @@ twitchClient.on("message", async (channel, tags, message, self) => {
 
         if (state.state !== "idle") return;
 
-        const target = message.split(" ")[1]?.replace("@", "");
+        const target = message.split(" ")[1]?.replace("@", "").toLowerCase();
 
         if (!target) return;
 
-        // 🚨 PROTECCIÓN: NO BANEAR MOD / BROADCASTER
-        const isMod =
-            tags.mod ||
-            tags.badges?.broadcaster;
+        // 🚨 PROTECCIÓN CORRECTA (TARGET, NO USER)
+        const targetIsProtected =
+            modSet.has(target) ||
+            target === CONFIG.BOT_USERNAME.toLowerCase();
 
-        if (isMod || target === CONFIG.BOT_USERNAME) {
+        if (targetIsProtected) {
 
             twitchClient.say(
                 channel,
                 `🛡️ @${target} está protegido. Caso cancelado.`
             );
 
-            state.state = "idle";
+            clearVote(state);
 
             return;
         }
@@ -229,7 +222,16 @@ twitchClient.on("message", async (channel, tags, message, self) => {
                     `⚖️ Resultado ${yes}-${no}. Esperando !accept o !cancel`
                 );
 
-                startConfirmTimeout(channel, state);
+                state.timeout = setTimeout(() => {
+
+                    twitchClient.say(
+                        channel,
+                        `⏱️ Sin respuesta del mod. Caso cancelado.`
+                    );
+
+                    clearVote(state);
+
+                }, 5 * 60 * 1000);
 
             } else {
 
@@ -337,6 +339,7 @@ twitchClient.on("message", async (channel, tags, message, self) => {
     }
 
 });
+
 /*
 |--------------------------------------------------------------------------
 | SERVER
