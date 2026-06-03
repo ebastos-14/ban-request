@@ -353,3 +353,21 @@ app.get("/", (req, res) => {
 app.listen(PORT, () => {
     console.log("Server running on", PORT);
 });
+
+/*
+|--------------------------------------------------------------------------
+| HEALTH CHECK
+|--------------------------------------------------------------------------
+*/
+
+app.get("/health", (req, res) => {
+
+    console.log("HEALTH CHECK:", new Date().toISOString());
+
+    res.status(200).json({
+        status: "online",
+        service: "community-ban-bot",
+        timestamp: Date.now()
+    });
+
+});
