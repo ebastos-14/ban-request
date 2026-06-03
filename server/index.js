@@ -172,7 +172,7 @@ twitchClient.on("message", async (channel, tags, message, self) => {
 
         twitchClient.say(
             channel,
-            `⏲️ 60s ⏲️ @${user} ha iniciado un juicio contra @${target} ⚖️`
+            `60s ⏱️ @${user} quiere banear a @${target} ⚖️ !voteban o !votedef`
         );
 
         setTimeout(() => {
@@ -189,14 +189,14 @@ twitchClient.on("message", async (channel, tags, message, self) => {
 
                 twitchClient.say(
                     channel,
-                    `🛎️ Resultado ${yes}/${no}. Esperando !accept o !cancel`
+                    `Si ${yes}/${no} No ⏳ Esperando respuesta del mod para banear`
                 );
 
                 state.timeout = setTimeout(() => {
 
                     twitchClient.say(
                         channel,
-                        `⌛ Tiempo agotado. Caso cancelado`
+                        `Que bendicion ⌛ Ningun mod respondio`
                     );
 
                     setCooldown(channelKey);
@@ -208,7 +208,7 @@ twitchClient.on("message", async (channel, tags, message, self) => {
 
                 twitchClient.say(
                     channel,
-                    `🛡️ Protegido (${yes}/${no})`
+                    `GG @${target} 🛡️ Si ${yes}/${no} No, otro dia sera`
                 );
 
                 setCooldown(channelKey);
@@ -262,14 +262,14 @@ twitchClient.on("message", async (channel, tags, message, self) => {
 
             twitchClient.say(
                 channel,
-                `☠️ @${vote.target} baneado por el chat`
+                `A dormir ☠️ @${vote.target} baneado por el chat`
             );
 
         } catch (e) {
 
             twitchClient.say(
                 channel,
-                `❌ Error al banear @${vote.target}`
+                `Equisde ❓ algo fallo, un hechicero lo hizo`
             );
         }
 
@@ -291,7 +291,7 @@ twitchClient.on("message", async (channel, tags, message, self) => {
 
         twitchClient.say(
             channel,
-            `⚔️ Cancelado por mod`
+            `Bueno ⚔️ mod aburrido`
         );
 
         setCooldown(channelKey);
