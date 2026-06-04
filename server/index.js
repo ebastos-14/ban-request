@@ -152,7 +152,7 @@ twitchClient.on("message", async (channel, tags, message, self) => {
     |--------------------------------------------------------------------------
     */
 
-    if (message.startsWith("!requestban ")) {
+    if (message.startsWith("requestban ")) {
 
         if (state.state !== "idle") return;
         if (isOnCooldown(channelKey)) return;
@@ -189,7 +189,7 @@ twitchClient.on("message", async (channel, tags, message, self) => {
 
                 twitchClient.say(
                     channel,
-                    `Si ${yes}/${no} No ⏳ Esperando respuesta del mod para banear`
+                    `(Si ${yes} / ${no} No) ⏳ Esperando respuesta del mod para banear`
                 );
 
                 state.timeout = setTimeout(() => {
@@ -208,7 +208,7 @@ twitchClient.on("message", async (channel, tags, message, self) => {
 
                 twitchClient.say(
                     channel,
-                    `GG @${target} 🛡️ Si ${yes}/${no} No, otro dia sera`
+                    `GG @${target} 🛡️ (Si ${yes} / ${no} No), otro dia sera`
                 );
 
                 setCooldown(channelKey);
@@ -235,7 +235,7 @@ twitchClient.on("message", async (channel, tags, message, self) => {
         return;
     }
 
-    if (message === "!votedef") {
+    if (message === "votedef") {
 
         if (state.state !== "voting") return;
 
@@ -250,7 +250,7 @@ twitchClient.on("message", async (channel, tags, message, self) => {
     |--------------------------------------------------------------------------
     */
 
-    if (message === "!accept") {
+    if (message === "accept") {
 
         if (state.state !== "awaiting_mod") return;
 
@@ -285,7 +285,7 @@ twitchClient.on("message", async (channel, tags, message, self) => {
     |--------------------------------------------------------------------------
     */
 
-    if (message === "!cancel") {
+    if (message === "cancel") {
 
         if (state.state !== "awaiting_mod") return;
 
