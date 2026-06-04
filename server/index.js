@@ -185,7 +185,7 @@ twitchClient.on("message", async (channel, tags, message, self) => {
 
         twitchClient.say(
             channel,
-            `60s ⏱️ @${user} quiere banear a @${target} ⚖️ !voteban o !votedef`
+            `60s ⏱️ @${user} quiere banear a @${target} ⚖️ voteban o votedef`
         );
 
         setTimeout(() => {
