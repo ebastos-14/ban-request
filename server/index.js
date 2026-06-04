@@ -145,6 +145,10 @@ twitchClient.on("message", async (channel, tags, message, self) => {
     const channelKey = channel.replace(/^#/, "").toLowerCase();
 
     const state = getState(channel);
+    
+    const msg = message.trim().replace(/\s+/g, " ");
+    
+    const msgLower = msg.toLowerCase();
 
     /*
     |--------------------------------------------------------------------------
@@ -152,12 +156,21 @@ twitchClient.on("message", async (channel, tags, message, self) => {
     |--------------------------------------------------------------------------
     */
 
-    if (message.startsWith("requestban ")) {
+    if (msgLower.startsWith("requestban @")) {
 
         if (state.state !== "idle") return;
         if (isOnCooldown(channelKey)) return;
 
-        const target = message.split(" ")[1]?.replace("@", "").toLowerCase();
+        const targetRaw = msg.split(" ")[1];
+        
+        if (!targetRaw?.startsWith("@")) {
+            return;
+        }
+        
+        const target = targetRaw
+            .substring(1)
+            .toLowerCase();
+        
         if (!target) return;
 
         state.state = "voting";
@@ -226,7 +239,7 @@ twitchClient.on("message", async (channel, tags, message, self) => {
     |--------------------------------------------------------------------------
     */
 
-    if (message === "!voteban") {
+    if (msgLower === "voteban") {
 
         if (state.state !== "voting") return;
 
@@ -235,7 +248,7 @@ twitchClient.on("message", async (channel, tags, message, self) => {
         return;
     }
 
-    if (message === "votedef") {
+    if (msgLower === "votedef") {
 
         if (state.state !== "voting") return;
 
@@ -250,7 +263,7 @@ twitchClient.on("message", async (channel, tags, message, self) => {
     |--------------------------------------------------------------------------
     */
 
-    if (message === "accept") {
+    if (msgLower === "accept") {
 
         if (state.state !== "awaiting_mod") return;
 
@@ -285,7 +298,7 @@ twitchClient.on("message", async (channel, tags, message, self) => {
     |--------------------------------------------------------------------------
     */
 
-    if (message === "cancel") {
+    if (msgLower === "cancel") {
 
         if (state.state !== "awaiting_mod") return;
 
