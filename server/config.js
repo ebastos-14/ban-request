@@ -8,7 +8,8 @@ export const CONFIG = {
 
     ALLOWED_CHANNELS: [
         "ebastos14_",
-        "jaciitv"
+        "jaciitv",
+        "mrryden"
     ],
 
     BOT_USERNAME: process.env.TWITCH_BOT_USERNAME,
