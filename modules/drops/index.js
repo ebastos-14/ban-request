@@ -1,8 +1,8 @@
 
 import { getAppAccessToken } from "../../server/twitch-api.js";
 const DROPS = {
-  "albiononline": "codeKeyAlbion",
-  "aion2": "codeVipAion"
+  "albiononline": "cat Albion",
+  "aion2": "cat Aion"
 };
 
 function normalizarCategoria(nombre = "") {
