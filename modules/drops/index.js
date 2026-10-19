@@ -1,7 +1,7 @@
 
 import { getAppAccessToken } from "../../server/twitch-api.js";
 const DROPS = {
-  "albiononline": "cat Albion",
+  "albiononline": "★★ Recuerda haber vinculado tu cuenta de Twitch y Albion aca -----> https://albiononline.com/es/twitch // Al ver el stream podras completar los drops y reclamarlos aqui -----> https://www.twitch.tv/drops/inventory ★★",
   "aion2": "cat Aion"
 };
 
