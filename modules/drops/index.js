@@ -15,11 +15,11 @@ function normalizarCategoria(nombre = "") {
 
 async function twitchGet(endpoint, params = {}) {
   const clientId = process.env.TWITCH_CLIENT_ID;
-  const token = process.env.TWITCH_APP_TOKEN;
-
-  if (!clientId || !token) {
-    throw new Error("Faltan TWITCH_CLIENT_ID o TWITCH_APP_TOKEN");
-  }
+  const token = await getAppAccessToken();
+  
+  if (!clientId) {
+    throw new Error("Falta TWITCH_CLIENT_ID en Render.");
+}
 
   const url = new URL(`https://api.twitch.tv/helix/${endpoint}`);
 
