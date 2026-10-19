@@ -3,7 +3,7 @@ export default {
   enabled: true,
 
   // Pon aquí los canales donde quieras habilitar los comandos de videos.
-  channels: ["ebastos14_"],
+  channels: ["ebastos14_", "jaciitv"],
 
   async handleMessage({ client, channel, message }) {
     if (message.toLowerCase() === "!video") {
