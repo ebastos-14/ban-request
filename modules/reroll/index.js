@@ -49,7 +49,7 @@ export default {
 
         await client.say(
           chatChannel,
-          ``
+          `jaciitMatecito `
         );
 
         this.timers[targetChannel] = setTimeout(async () => {
