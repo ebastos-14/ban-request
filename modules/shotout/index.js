@@ -56,10 +56,10 @@ export default {
     const raid = this.lastRaiderByChannel[targetChannel];
 
     if (!raid) {
-      await client.say(channel, "No hay ninguna raid registrada en este canal.");
+      await client.say(channel, "No hay coso reciente");
       return;
     }
 
-    await client.say(channel, `/timeout coso 1s`);
+    await client.say(channel, `/timeout coso 1s `);
   },
 };
