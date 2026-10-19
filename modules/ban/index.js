@@ -1,4 +1,5 @@
 
+import { getAppAccessToken } from "../../server/twitch-api.js";
 const VOTE_DURATION_MS = 60_000;
 const COOLDOWN_DURATION_MS = 120_000;
 const MOD_RESPONSE_TIMEOUT_MS = 5 * 60_000;
@@ -37,9 +38,10 @@ async function getUserId(login) {
   if (!login) throw new Error("No se recibió el nombre de usuario.");
 
   const clientId = process.env.TWITCH_CLIENT_ID;
-  const appToken = process.env.TWITCH_APP_TOKEN;
-  if (!clientId || !appToken) {
-    throw new Error("Faltan TWITCH_CLIENT_ID o TWITCH_APP_TOKEN.");
+  const appToken = await getAppAccessToken();
+  
+  if (!clientId) {
+    throw new Error("Falta TWITCH_CLIENT_ID en Render.");
   }
 
   const response = await fetch(
