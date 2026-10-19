@@ -53,7 +53,7 @@ export default {
   channels: ["ebastos14_", "jaciitv"],
 
   async handleMessage({ client, channel, channelName, message }) {
-    if (message.trim().toLowerCase() !== "!drops") return;
+    if (message.trim().toLowerCase() !== "!drop") return;
 
     try {
       const category = await getCategory(channelName);
