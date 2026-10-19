@@ -1,49 +1,75 @@
 
 const DROPS = {
-  "albion online": "codeKeyAlbion",
-  "aion 2": "codeVipAion"
+  "albiononline": "codeKeyAlbion",
+  "aion2": "codeVipAion"
 };
 
-const categoryCache = new Map();
-const CACHE_MS = 30_000;
+function normalizarCategoria(nombre = "") {
+  return nombre
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+}
 
-async function getCategory(channelName) {
-  const cached = categoryCache.get(channelName);
-
-  if (cached && Date.now() - cached.time < CACHE_MS) {
-    return cached.category;
-  }
-
+async function twitchGet(endpoint, params = {}) {
   const clientId = process.env.TWITCH_CLIENT_ID;
   const token = process.env.TWITCH_APP_TOKEN;
 
   if (!clientId || !token) {
-    throw new Error("Faltan las credenciales de Twitch");
+    throw new Error("Faltan TWITCH_CLIENT_ID o TWITCH_APP_TOKEN");
   }
 
-  const response = await fetch(
-    `https://api.twitch.tv/helix/streams?user_login=${encodeURIComponent(channelName)}`,
-    {
-      headers: {
-        "Client-Id": clientId,
-        "Authorization": `Bearer ${token}`
-      }
+  const url = new URL(`https://api.twitch.tv/helix/${endpoint}`);
+
+  for (const [key, value] of Object.entries(params)) {
+    url.searchParams.set(key, value);
+  }
+
+  const response = await fetch(url, {
+    headers: {
+      "Client-Id": clientId,
+      "Authorization": `Bearer ${token}`
     }
-  );
-
-  if (!response.ok) {
-    throw new Error(`Twitch API: ${response.status}`);
-  }
-
-  const data = await response.json();
-  const category = data.data?.[0]?.game_name ?? null;
-
-  categoryCache.set(channelName, {
-    category,
-    time: Date.now()
   });
 
-  return category;
+  if (!response.ok) {
+    throw new Error(`Twitch API respondió HTTP ${response.status}`);
+  }
+
+  return response.json();
+}
+
+async function consultarCanal(channelName) {
+  const users = await twitchGet("users", {
+    login: channelName
+  });
+
+  const user = users.data?.[0];
+
+  if (!user) {
+    throw new Error(`No se encontró el canal ${channelName}`);
+  }
+
+  const [channels, streams] = await Promise.all([
+    twitchGet("channels", {
+      broadcaster_id: user.id
+    }),
+    twitchGet("streams", {
+      user_id: user.id
+    })
+  ]);
+
+  const informacion = channels.data?.[0];
+
+  if (!informacion) {
+    throw new Error("Twitch no devolvió la información del canal");
+  }
+
+  return {
+    categoria: informacion.game_name || "",
+    enDirecto: (streams.data?.length ?? 0) > 0
+  };
 }
 
 export default {
@@ -53,30 +79,38 @@ export default {
   channels: ["ebastos14_", "jaciitv"],
 
   async handleMessage({ client, channel, channelName, message }) {
-    if (message.trim().toLowerCase() !== "!drop") return;
+    if (message.trim().toLowerCase() !== "!drops") return;
 
     try {
-      const category = await getCategory(channelName);
+      const info = await consultarCanal(channelName);
+      const categoria = normalizarCategoria(info.categoria);
+      const codigo = DROPS[categoria];
 
-      if (!category) {
+      if (codigo) {
+        await client.say(channel, codigo);
+        return;
+      }
+
+      if (!info.categoria) {
         await client.say(
           channel,
-          "No se pudo detectar el juego. El canal podría estar desconectado."
+          info.enDirecto
+            ? "No pude detectar la categoría actual del canal."
+            : "El canal está offline y no tiene una categoría disponible en Twitch."
         );
         return;
       }
 
-      const key = category.trim().toLowerCase();
-      const code = DROPS[key];
-
-      if (!code) return;
-
-      await client.say(channel, code);
-    } catch (error) {
-      console.error("[drops]", error);
       await client.say(
         channel,
-        "No pude consultar los drops en este momento."
+        `No hay drops establecidos para la categoría: ${info.categoria}.`
+      );
+    } catch (error) {
+      console.error("[drops]", error);
+
+      await client.say(
+        channel,
+        "Hubo un error consultando Twitch. Revisa las credenciales y la consola del bot."
       );
     }
   }
