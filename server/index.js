@@ -115,6 +115,38 @@ client.on("notice", (channel, msgid, message) => {
   );
 });
 
+
+
+
+
+
+client.on("raided", async (rawChannel, username, viewers) => {
+  const channel = normalizeChannel(rawChannel);
+
+  console.log(
+    `[raid detectada] Canal receptor: #${channel} | Streamer: ${username} | Espectadores: ${viewers}`
+  );
+
+  for (const module of modules) {
+    if (module.enabled === false) continue;
+    if (typeof module.handleRaid !== "function") continue;
+
+    const allowedChannels = (module.channels ?? []).map(normalizeChannel);
+    if (!allowedChannels.includes(channel)) continue;
+
+    try {
+      await module.handleRaid({ channel, username, viewers, client });
+    } catch (error) {
+      console.error(`[${module.name}] Error al procesar raid:`, error);
+    }
+  }
+});
+
+
+
+
+
+
 try {
   await client.connect();
 } catch (error) {
