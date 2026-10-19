@@ -34,8 +34,13 @@ async function twitchGet(endpoint, params = {}) {
   });
 
   if (!response.ok) {
-    throw new Error(`Twitch API respondió HTTP ${response.status}`);
-  }
+  const detalle = await response.text();
+  console.error(
+    `[drops] ${endpoint}: HTTP ${response.status}`,
+    detalle
+  );
+  throw new Error(`Twitch API respondió HTTP ${response.status}`);
+}
 
   return response.json();
 }
