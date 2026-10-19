@@ -49,7 +49,7 @@ export default {
 
         await client.say(
           chatChannel,
-          `⏳ @${winner} tienes 30 segundos para responder.`
+          ``
         );
 
         this.timers[targetChannel] = setTimeout(async () => {
@@ -62,7 +62,7 @@ export default {
 
           await client.say(
             chatChannel,
-            `⌛ Pasaron 30 segundos y @${winner} no respondió.`
+            `Pasaron 30 segundos y ${winner} no respondió.`
           );
 
           console.log(
@@ -93,7 +93,7 @@ export default {
 
       await client.say(
         chatChannel,
-        `✅ @${state.winner} ha respondido tras ${elapsed} segundos. Tienen 30 segundos para solicitar RR.`
+        `${state.winner} respondio en ${elapsed}s. Tienen 30 segundos para solicitar RR con jaciitMatecito`
       );
 
       this.timers[targetChannel] = setTimeout(async () => {
@@ -122,7 +122,7 @@ export default {
 
         await client.say(
           chatChannel,
-          `📊 RR: ${rr} | reroll: ${reroll} | emote: ${emote} | Total: ${total}. Streamer, decide si haces RR.`
+          `El chat acumuló ${total} peticiones ${emote}`
         );
       }, 30000);
 
