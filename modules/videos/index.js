@@ -5,6 +5,8 @@ const videoCommands = {
   "!santuario35": "POV ❤️‍🔥 DRAGON SANCTUARY en 35 min. - Albion Online en Español --- https://youtu.be/5dOjhRMHgZg?si=yqMBF3tR5vlNzME0",
 
   "!dracoguia": "🐲DRAGONES 🪙 El mayor silver sink de la historia de Albion? 🪙 Guía y Builds 📚 AO en Español --- https://youtu.be/3EpXB9zAW4w?si=2_vtfPx3t-UKhuNA",
+
+  "!say": "jaciitMatecito ",
 };
 
 export default {
