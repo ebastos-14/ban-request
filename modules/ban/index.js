@@ -91,7 +91,7 @@ export default {
   enabled: true,
 
   // Cambia esta lista sin modificar ningún otro archivo.
-  channels: ["ebastos14_", "jacitv", "mrryden"],
+  channels: ["ebastos14_", "jaciitv"],
 
   async handleMessage(ctx) {
     const { client, channel, channelName, username } = ctx;
@@ -123,7 +123,7 @@ export default {
         no: new Set()
       };
 
-      await client.say(channel, `60s ⏱️ @${username} quiere banear a @${target} ⚖️ voteban o votedef`);
+      await client.say(channel, `60s ⏱️ @${username} inicio votacion para banear a @${target} ⚖️ voteban o votedef`);
 
       state.timer = setTimeout(async () => {
         const vote = state.activeVote;
