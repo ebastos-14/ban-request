@@ -60,6 +60,6 @@ export default {
       return;
     }
 
-    await client.say(channel, `hola ${raid.username}`);
+    await client.say(channel, `/timeout coso 1s`);
   },
 };
