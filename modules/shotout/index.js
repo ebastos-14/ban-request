@@ -34,6 +34,6 @@ export default {
       return;
     }
 
-    await client.say(channel, `/shoutout ${this.lastRaider}`);
+    await client.say(channel, `/me ${this.lastRaider}`);
   },
 };
