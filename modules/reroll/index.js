@@ -122,7 +122,7 @@ export default {
 
         await client.say(
           chatChannel,
-          `El chat acumuló ${total} peticiones ${emote}`
+          `El chat acumuló ${total} peticiones jaciitMatecito `
         );
       }, 30000);
 
