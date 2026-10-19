@@ -1,31 +1,54 @@
+
 import "dotenv/config";
+import express from "express";
 import tmi from "tmi.js";
 import { loadModules } from "./module-hub.js";
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get("/", (req, res) => {
+  res.status(200).send("Bot de Twitch activo");
+});
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Servidor HTTP activo en el puerto ${PORT}`);
+});
 
 const BOT_USERNAME = process.env.TWITCH_BOT_USERNAME;
 const OAUTH_TOKEN = process.env.TWITCH_OAUTH;
 
 if (!BOT_USERNAME || !OAUTH_TOKEN) {
-  console.error("Faltan TWITCH_BOT_USERNAME o TWITCH_OAUTH en las variables de entorno.");
-  process.exit(1);
-}
-
-const modules = await loadModules();
-const channels = [...new Set(
-  modules
-    .filter((module) => module.enabled !== false)
-    .flatMap((module) => module.channels ?? [])
-    .map(normalizeChannel)
-    .filter(Boolean)
-)];
-
-if (channels.length === 0) {
-  console.error("Ningún módulo tiene canales configurados. Edita channels en modules/*/index.js.");
+  console.error(
+    "Faltan TWITCH_BOT_USERNAME o TWITCH_OAUTH en las variables de entorno."
+  );
   process.exit(1);
 }
 
 function normalizeChannel(channel) {
-  return String(channel ?? "").replace(/^#/, "").trim().toLowerCase();
+  return String(channel ?? "")
+    .replace(/^#/, "")
+    .trim()
+    .toLowerCase();
+}
+
+const modules = await loadModules();
+
+const channels = [
+  ...new Set(
+    modules
+      .filter((module) => module.enabled !== false)
+      .flatMap((module) => module.channels ?? [])
+      .map(normalizeChannel)
+      .filter(Boolean)
+  )
+];
+
+if (channels.length === 0) {
+  console.error(
+    "Ningún módulo tiene canales configurados. Edita channels en modules/*/index.js."
+  );
+  process.exit(1);
 }
 
 const client = new tmi.Client({
@@ -40,7 +63,11 @@ const client = new tmi.Client({
 client.on("connected", (address, port) => {
   console.log(`Conectado a Twitch en ${address}:${port}`);
   console.log(`Canales: ${channels.map((channel) => `#${channel}`).join(", ")}`);
-  console.log(`Módulos cargados: ${modules.map((module) => module.name ?? "sin nombre").join(", ")}`);
+  console.log(
+    `Módulos cargados: ${modules
+      .map((module) => module.name ?? "sin nombre")
+      .join(", ")}`
+  );
 });
 
 client.on("message", async (rawChannel, tags, rawMessage, self) => {
@@ -74,13 +101,18 @@ client.on("message", async (rawChannel, tags, rawMessage, self) => {
     try {
       await module.handleMessage(context);
     } catch (error) {
-      console.error(`[${module.name ?? "módulo"}] Error en #${channel}:`, error);
+      console.error(
+        `[${module.name ?? "módulo"}] Error en #${channel}:`,
+        error
+      );
     }
   }
 });
 
 client.on("notice", (channel, msgid, message) => {
-  console.warn(`[Twitch notice] ${channel ?? ""} ${msgid ?? ""} ${message ?? ""}`);
+  console.warn(
+    `[Twitch notice] ${channel ?? ""} ${msgid ?? ""} ${message ?? ""}`
+  );
 });
 
 try {
