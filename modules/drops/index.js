@@ -1,8 +1,8 @@
 
 import { getAppAccessToken } from "../../server/twitch-api.js";
 const DROPS = {
-  "albiononline": "★★ Recuerda haber vinculado tu cuenta de Twitch y Albion aca -----> https://albiononline.com/es/twitch // Al ver el stream podras completar los drops y reclamarlos aqui -----> https://www.twitch.tv/drops/inventory ★★",
-  "aion2": "cat Aion"
+  "albiononline": "Recuerda haber vinculado tu cuenta de Twitch y Albion aca -----> https://albiononline.com/es/twitch // Al ver el stream podras completar los drops y reclamarlos aqui -----> https://www.twitch.tv/drops/inventory",
+  "aion2": "Acá va el link de aion"
 };
 
 function normalizarCategoria(nombre = "") {
