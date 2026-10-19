@@ -60,6 +60,6 @@ export default {
       return;
     }
 
-    await client.say(channel, `/timeout coso 1s `);
+    await client.say(channel, `/shoutout ebastos14`);
   },
 };
