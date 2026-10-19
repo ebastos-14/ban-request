@@ -2,38 +2,41 @@
 export default {
   name: "shoutout",
   enabled: true,
-
-  // Canales donde estará habilitado.
   channels: ["ebastos14_", "jaciitv"],
 
-  // Guarda el último streamer que hizo raid.
-  lastRaider: null,
+  lastRaiderByChannel: {},
 
-  // Se llama cuando el bot detecta un raid.
   async handleRaid({ channel, username }) {
-    const targetChannel = channel.replace(/^#/, "").toLowerCase();
+    const targetChannel = String(channel ?? "")
+      .replace(/^#/, "")
+      .toLowerCase();
 
-    if (!this.channels.includes(targetChannel)) return;
+    const raider = String(username ?? "").replace(/^@/, "").trim();
 
-    if (username) {
-      this.lastRaider = username.replace(/^@/, "");
-      console.log(`[shoutout] Último raid: ${this.lastRaider}`);
-    }
+    if (!this.channels.includes(targetChannel) || !raider) return;
+
+    this.lastRaiderByChannel[targetChannel] = raider;
+
+    console.log(
+      `[shoutout] Raid recibida en #${targetChannel} desde ${raider}`
+    );
   },
 
-  // Comando para hacer shoutout al último streamer.
-  async handleMessage({ client, channel, message }) {
+  async handleMessage({ client, channel, message, isMod }) {
     if (message.trim().toLowerCase() !== "!solast") return;
+    if (!isMod) return;
 
     const targetChannel = channel.replace(/^#/, "").toLowerCase();
 
     if (!this.channels.includes(targetChannel)) return;
 
-    if (!this.lastRaider) {
-      await client.say(channel, "No hay coso.");
+    const raider = this.lastRaiderByChannel[targetChannel];
+
+    if (!raider) {
+      await client.say(channel, "No hay ninguna raid registrada en este canal.");
       return;
     }
 
-    await client.say(channel, `/me ${this.lastRaider}`);
+    await client.say(channel, `/me ${raider}`);
   },
 };
