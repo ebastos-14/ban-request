@@ -30,7 +30,7 @@ export default {
     if (!this.channels.includes(targetChannel)) return;
 
     if (!this.lastRaider) {
-      await client.say(channel, "Todavía no tengo registrado ningún raid.");
+      await client.say(channel, "No hay coso.");
       return;
     }
 
