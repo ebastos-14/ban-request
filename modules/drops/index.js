@@ -85,7 +85,7 @@ export default {
   channels: ["ebastos14_", "jaciitv"],
 
   async handleMessage({ client, channel, channelName, message }) {
-    if (message.trim().toLowerCase() !== "!drops") return;
+    if (message.trim().toLowerCase() !== "!drops-pausa") return;
 
     try {
       const info = await consultarCanal(channelName);
