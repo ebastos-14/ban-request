@@ -1,14 +1,14 @@
 {
-  "name": "community-ban-bot",
-  "version": "1.0.0",
-  "description": "Twitch Community Ban Bot",
+  "name": "community-chat-bot",
+  "version": "2.0.0",
+  "description": "Bot modular de Twitch con comandos organizados por carpetas",
   "type": "module",
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js"
   },
   "dependencies": {
-    "express": "^5.1.0",
-    "tmi.js": "^1.8.5"
+    "tmi.js": "^1.8.5",
+    "dotenv": "^16.4.7"
   }
 }
