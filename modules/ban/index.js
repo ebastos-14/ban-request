@@ -1,8 +1,8 @@
 
 import { getAppAccessToken } from "../../server/twitch-api.js";
 const VOTE_DURATION_MS = 60_000;
-const COOLDOWN_DURATION_MS = 120_000;
-const MOD_RESPONSE_TIMEOUT_MS = 5 * 60_000;
+const COOLDOWN_DURATION_MS = 10_000;
+const MOD_RESPONSE_TIMEOUT_MS = 60_000;
 
 // Estado y cooldown independientes por canal.
 const channelStates = new Map();
@@ -126,7 +126,7 @@ export default {
         no: new Set()
       };
 
-      await client.say(channel, `60s ⏱️ @${username} quiere banear a @${target} ⚖️ voteban o votedef`);
+      await client.say(channel, `60s ⏱️ @${username} pide ban a @${target} ⚖️ voteban o votedef`);
 
       state.timer = setTimeout(async () => {
         const vote = state.activeVote;
