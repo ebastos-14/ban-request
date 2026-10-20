@@ -2,7 +2,7 @@
 export default {
   name: "shoutout",
   enabled: true,
-  channels: ["ebastos14_", "jaciitv"],
+  channels: ["ebastos14_", "jaciitv", "mrryden"],
 
   lastRaiderByChannel: {},
 
@@ -60,6 +60,6 @@ export default {
       return;
     }
 
-    await client.say(channel, `/shoutout ebastos14`);
+    await client.say(channel, `Hola ${raider}`);
   },
 };
