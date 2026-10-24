@@ -94,7 +94,7 @@ export default {
   enabled: true,
 
   // Cambia esta lista sin modificar ningún otro archivo.
-  channels: ["ebastos14_", "jaciitv", "mrryden"],
+  channels: ["ebastos14", "jaciitv", "mrryden"],
 
   async handleMessage(ctx) {
     const { client, channel, channelName, username } = ctx;
