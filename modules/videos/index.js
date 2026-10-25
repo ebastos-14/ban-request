@@ -14,7 +14,7 @@ export default {
   enabled: true,
 
   // Canales donde estarán habilitados los comandos.
-  channels: ["ebastos14", "jaciitv", "mrryden", "vonkure"],
+  channels: ["ebastos14", "jaciitv", "mrryden"],
 
   async handleMessage({ client, channel, message }) {
     const command = message.trim().toLowerCase();
