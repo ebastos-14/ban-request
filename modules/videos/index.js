@@ -6,7 +6,7 @@ const videoCommands = {
 
   "!dracoguia": "🐲DRAGONES 🪙 El mayor silver sink de la historia de Albion? 🪙 Guía y Builds 📚 AO en Español --- https://youtu.be/3EpXB9zAW4w?si=2_vtfPx3t-UKhuNA",
 
-  "!que": "so",
+  "!que": "so", 
 };
 
 export default {
@@ -14,7 +14,7 @@ export default {
   enabled: true,
 
   // Canales donde estarán habilitados los comandos.
-  channels: ["ebastos14", "jaciitv", "mrryden"],
+  channels: ["ebastos14", "jaciitv"],
 
   async handleMessage({ client, channel, message }) {
     const command = message.trim().toLowerCase();
