@@ -37,14 +37,16 @@ async function sendShoutout(channelName, target) {
   const userId = await getUserId(target);
 
   const clientId = process.env.TWITCH_CLIENT_ID;
-  const appToken = process.env.TWITCH_APP_TOKEN;
+  const shoutoutToken = process.env.TWITCH_PRIO_MOD_TOKEN;
 
   if (!broadcasterId || !moderatorId || !userId) {
     throw new Error("No se pudo encontrar un ID de Twitch.");
   }
 
-  if (!clientId || !appToken) {
-    throw new Error("Falta TWITCH_CLIENT_ID o TWITCH_APP_TOKEN.");
+  if (!clientId || !shoutoutToken) {
+    throw new Error(
+      "Falta TWITCH_CLIENT_ID o TWITCH_PRIO_MOD_TOKEN."
+    );
   }
 
   const url = new URL(
@@ -59,7 +61,7 @@ async function sendShoutout(channelName, target) {
     method: "POST",
     headers: {
       "Client-ID": clientId,
-      "Authorization": `Bearer ${appToken}`
+      "Authorization": `Bearer ${shoutoutToken}`
     }
   });
 
@@ -118,7 +120,14 @@ export default {
     }
   },
 
-  async handleMessage({ client, channel, channelName, message, isMod, isBroadcaster }) {
+  async handleMessage({
+    client,
+    channel,
+    channelName,
+    message,
+    isMod,
+    isBroadcaster
+  }) {
     if (message.trim().toLowerCase() !== "!solast") return;
     if (!isMod && !isBroadcaster) return;
 
