@@ -1,100 +1,82 @@
 
 import { getAppAccessToken } from "../../server/twitch-api.js";
 
+async function getUserId(login) {
+  if (!login) return null;
+
+  const clientId = process.env.TWITCH_CLIENT_ID;
+  const appToken = await getAppAccessToken();
+
+  if (!clientId) {
+    throw new Error("Falta TWITCH_CLIENT_ID.");
+  }
+
+  const response = await fetch(
+    `https://api.twitch.tv/helix/users?login=${encodeURIComponent(login)}`,
+    {
+      headers: {
+        "Client-ID": clientId,
+        "Authorization": `Bearer ${appToken}`
+      }
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Twitch users API: ${response.status}`);
+  }
+
+  const json = await response.json();
+  return json.data?.[0]?.id ?? null;
+}
+
+async function sendShoutout(channelName, target) {
+  const broadcasterId = await getUserId(channelName);
+  const moderatorId = await getUserId(
+    process.env.TWITCH_BOT_USERNAME
+  );
+  const userId = await getUserId(target);
+
+  const clientId = process.env.TWITCH_CLIENT_ID;
+  const appToken = process.env.TWITCH_APP_TOKEN;
+
+  if (!broadcasterId || !moderatorId || !userId) {
+    throw new Error("No se pudo encontrar un ID de Twitch.");
+  }
+
+  if (!clientId || !appToken) {
+    throw new Error("Falta TWITCH_CLIENT_ID o TWITCH_APP_TOKEN.");
+  }
+
+  const url = new URL(
+    "https://api.twitch.tv/helix/chat/shoutouts"
+  );
+
+  url.searchParams.set("from_broadcaster_id", broadcasterId);
+  url.searchParams.set("to_broadcaster_id", userId);
+  url.searchParams.set("moderator_id", moderatorId);
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Client-ID": clientId,
+      "Authorization": `Bearer ${appToken}`
+    }
+  });
+
+  if (response.status !== 204) {
+    const detail = await response.text();
+    throw new Error(
+      `Twitch Shoutout API: ${response.status} ${detail}`
+    );
+  }
+}
+
 export default {
   name: "shoutout",
   enabled: true,
   channels: ["ebastos14", "jaciitv", "boteb14"],
 
-  // Déjalo en false hasta comprobar que !solast funciona.
-  // Después puedes cambiarlo a true para automatizar raids de 40+.
-  autoShoutoutFor40Plus: false,
-
   lastRaiderByChannel: {},
-
-  async getTwitchUserId(login) {
-    const clientId = process.env.TWITCH_CLIENT_ID;
-
-    if (!clientId) {
-      throw new Error("Falta TWITCH_CLIENT_ID.");
-    }
-
-    const appToken = await getAppAccessToken();
-
-    const response = await fetch(
-      `https://api.twitch.tv/helix/users?login=${encodeURIComponent(login)}`,
-      {
-        headers: {
-          "Client-Id": clientId,
-          Authorization: `Bearer ${appToken}`,
-        },
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(
-        `Error buscando a ${login}: HTTP ${response.status} ${await response.text()}`
-      );
-    }
-
-    const data = await response.json();
-
-    if (!data.data?.length) {
-      throw new Error(`No se encontró el usuario ${login}.`);
-    }
-
-    return data.data[0].id;
-  },
-
-  async sendOfficialShoutout(channelName, raiderUsername) {
-    const clientId = process.env.TWITCH_CLIENT_ID;
-    const userToken = process.env.TWITCH_SHOUTOUT_TOKEN;
-    const botUsername = process.env.TWITCH_BOT_USERNAME;
-
-    if (!clientId || !userToken || !botUsername) {
-      throw new Error(
-        "Falta TWITCH_CLIENT_ID, TWITCH_SHOUTOUT_TOKEN o TWITCH_BOT_USERNAME."
-      );
-    }
-
-    // La cuenta del token debe ser la del bot, y este debe ser
-    // moderador del canal donde se enviará el shoutout.
-    const [broadcasterId, raiderId, moderatorId] = await Promise.all([
-      this.getTwitchUserId(channelName),
-      this.getTwitchUserId(raiderUsername),
-      this.getTwitchUserId(botUsername),
-    ]);
-
-    const params = new URLSearchParams({
-      from_broadcaster_id: broadcasterId,
-      to_broadcaster_id: raiderId,
-      moderator_id: moderatorId,
-    });
-
-    const response = await fetch(
-      `https://api.twitch.tv/helix/chat/shoutouts?${params}`,
-      {
-        method: "POST",
-        headers: {
-          "Client-Id": clientId,
-          Authorization: `Bearer ${userToken}`,
-        },
-      }
-    );
-
-    // Twitch responde 204 cuando el shoutout se envía correctamente.
-    if (response.status !== 204) {
-      const detail = await response.text();
-
-      throw new Error(
-        `Twitch rechazó el shoutout: HTTP ${response.status} ${detail}`
-      );
-    }
-
-    console.log(
-      `[shoutout] Shoutout oficial enviado en #${channelName} a ${raiderUsername}`
-    );
-  },
 
   async handleRaid({ client, channel, username, viewers }) {
     const targetChannel = String(channel ?? "")
@@ -116,7 +98,7 @@ export default {
 
     this.lastRaiderByChannel[targetChannel] = {
       username: raider,
-      viewers: viewerCount,
+      viewers: viewerCount
     };
 
     console.log(
@@ -128,33 +110,19 @@ export default {
         `#${targetChannel}`,
         `/me Raid de ${raider} jaciitMatecito`
       );
-    }
-
-    if (viewerCount >= 40) {
+    } else if (viewerCount >= 40) {
       await client.say(
         `#${targetChannel}`,
-        "/me Ojito esa raid ameising doble guatafak jaciitMatecito jaciitMatecito"
+        `/me Ojito esa raid ameising doble guatafak jaciitMatecito jaciitMatecito`
       );
-
-      // Automatización preparada, desactivada por defecto.
-      if (this.autoShoutoutFor40Plus) {
-        try {
-          await this.sendOfficialShoutout(targetChannel, raider);
-        } catch (error) {
-          console.error(
-            `[shoutout] Falló el automático en #${targetChannel}:`,
-            error
-          );
-        }
-      }
     }
   },
 
-  async handleMessage({ client, channel, message, isMod }) {
+  async handleMessage({ client, channel, channelName, message, isMod, isBroadcaster }) {
     if (message.trim().toLowerCase() !== "!solast") return;
-    if (!isMod) return;
+    if (!isMod && !isBroadcaster) return;
 
-    const targetChannel = channel
+    const targetChannel = String(channelName ?? channel ?? "")
       .replace(/^#/, "")
       .trim()
       .toLowerCase();
@@ -169,14 +137,11 @@ export default {
     }
 
     try {
-      await this.sendOfficialShoutout(
-        targetChannel,
-        raid.username
-      );
+      await sendShoutout(targetChannel, raid.username);
 
       await client.say(
         channel,
-        `Hola @${raid.username}!`
+        `Hola ${raid.username}`
       );
     } catch (error) {
       console.error(
@@ -186,8 +151,8 @@ export default {
 
       await client.say(
         channel,
-        "No se puede coso, falta el cosito"
+        "No coso, falta el cosito"
       );
     }
-  },
+  }
 };
