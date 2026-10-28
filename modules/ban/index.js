@@ -1,7 +1,3 @@
-/*
-
-
-
 import { getAppAccessToken } from "../../server/twitch-api.js";
 const VOTE_DURATION_MS = 60_000;
 const COOLDOWN_DURATION_MS = 10_000;
@@ -204,8 +200,3 @@ export default {
     }
   }
 };
-
-
-
-
-*/
