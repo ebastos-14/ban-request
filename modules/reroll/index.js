@@ -3,7 +3,7 @@ export default {
   name: "sorteotv",
   enabled: true,
 
-  channels: ["ebastos14_", "jaciitv"],
+  channels: ["ebastos14", "jaciitv"],
 
   states: {},
   timers: {},
@@ -49,7 +49,7 @@ export default {
 
         await client.say(
           chatChannel,
-          `jaciitMatecito `
+          `jaciitMatecito ganador anunciado... esperando respuesta jaciitMatecito`
         );
 
         this.timers[targetChannel] = setTimeout(async () => {
@@ -62,7 +62,7 @@ export default {
 
           await client.say(
             chatChannel,
-            `Pasaron 30 segundos y ${winner} no respondió.`
+            `${winner} perdio, ya pasaron 30s jaciitMatecito`
           );
 
           console.log(
@@ -93,7 +93,7 @@ export default {
 
       await client.say(
         chatChannel,
-        `${state.winner} respondio en ${elapsed}s. Tienen 30 segundos para solicitar RR con jaciitMatecito`
+        `${state.winner} respondio en ${elapsed}s, que decida el pueblo... Rr o jaciitMatecito`
       );
 
       this.timers[targetChannel] = setTimeout(async () => {
@@ -117,12 +117,12 @@ export default {
         const total = state.requests.size;
 
         console.log(
-          `[sorteotv] #${targetChannel}: RR=${rr}, reroll=${reroll}, emote=${emote}, total=${total}`
+          `[sorteotv] #${targetChannel}: total=${total}`
         );
 
         await client.say(
           chatChannel,
-          `El chat acumuló ${total} peticiones jaciitMatecito `
+          `jaciitMatecito el chat acumulo ${total} peticiones`
         );
       }, 30000);
 
