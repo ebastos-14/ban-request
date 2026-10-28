@@ -2,7 +2,7 @@
 export default {
   name: "shoutout",
   enabled: true,
-  channels: ["ebastos14_", "jaciitv"],
+  channels: ["ebastos14", "jaciitv"],
 
   lastRaiderByChannel: {},
 
@@ -32,16 +32,12 @@ export default {
       `[shoutout] Raid en #${targetChannel}: ${raider}, espectadores=${viewerCount}`
     );
 
-    if (viewerCount >= 1 && viewerCount <= 19) {
-      await client.say(`#${targetChannel}`, `test0 ${viewerCount}`);
-    }
-
-    if (viewerCount >= 20 && viewerCount <= 39) {
-      await client.say(`#${targetChannel}`, `test1 ${viewerCount}`);
+    if (viewerCount >= 1 && viewerCount <= 39) {
+      await client.say(`#${targetChannel}`, `/me Raid de ${raider} jaciitMatecito`);
     }
 
     if (viewerCount >= 40) {
-      await client.say(`#${targetChannel}`, `test2 ${viewerCount}`);
+      await client.say(`#${targetChannel}`, `/me Ojito esa raid ameising doble guatafak jaciitMatecito jaciitMatecito`);
     }
   },
 
@@ -56,10 +52,10 @@ export default {
     const raid = this.lastRaiderByChannel[targetChannel];
 
     if (!raid) {
-      await client.say(channel, "No hay coso reciente");
+      await client.say(channel, "No hay coso");
       return;
     }
 
-    await client.say(channel, `/timeout coso 1s `);
+    await client.say(channel, `Hola ${raider}`);
   },
 };
