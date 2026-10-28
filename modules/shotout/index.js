@@ -37,7 +37,7 @@ async function sendShoutout(channelName, target) {
   const userId = await getUserId(target);
 
   const clientId = process.env.TWITCH_CLIENT_ID;
-  const shoutoutToken = process.env.TWITCH_PRIO_MOD_TOKEN;
+  const shoutoutToken = process.env.TWITCH_SHOUTOUT_TOKEN;
 
   if (!broadcasterId || !moderatorId || !userId) {
     throw new Error("No se pudo encontrar un ID de Twitch.");
@@ -45,7 +45,7 @@ async function sendShoutout(channelName, target) {
 
   if (!clientId || !shoutoutToken) {
     throw new Error(
-      "Falta TWITCH_CLIENT_ID o TWITCH_PRIO_MOD_TOKEN."
+      "Falta TWITCH_CLIENT_ID o TWITCH_SHOUTOUT_TOKEN."
     );
   }
 
