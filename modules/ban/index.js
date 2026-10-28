@@ -1,3 +1,6 @@
+/*
+
+
 
 import { getAppAccessToken } from "../../server/twitch-api.js";
 const VOTE_DURATION_MS = 60_000;
@@ -94,7 +97,7 @@ export default {
   enabled: true,
 
   // Cambia esta lista sin modificar ningún otro archivo.
-  channels: ["ebastos14", "jaciitv", "mrryden"],
+  channels: ["ebastos14", "jaciitv"],
 
   async handleMessage(ctx) {
     const { client, channel, channelName, username } = ctx;
@@ -201,3 +204,8 @@ export default {
     }
   }
 };
+
+
+
+
+*/
