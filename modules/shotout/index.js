@@ -1,15 +1,54 @@
 
-import { getAppAccessToken } from "../../server/twitch-api.js";
+let cachedAppToken = null;
+let appTokenExpiresAt = 0;
+
+async function getShoutoutAppAccessToken() {
+  if (cachedAppToken && Date.now() < appTokenExpiresAt) {
+    return cachedAppToken;
+  }
+
+  const clientId = process.env.TWITCH_SHOUTOUT_CLIENT_ID;
+  const clientSecret = process.env.TWITCH_SHOUTOUT_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    throw new Error(
+      "Faltan TWITCH_SHOUTOUT_CLIENT_ID o TWITCH_SHOUTOUT_CLIENT_SECRET."
+    );
+  }
+
+  const response = await fetch("https://id.twitch.tv/oauth2/token", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      grant_type: "client_credentials"
+    })
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(
+      `Error al obtener token de aplicación para Shoutout: HTTP ${response.status}. ${detail}`
+    );
+  }
+
+  const data = await response.json();
+
+  cachedAppToken = data.access_token;
+  appTokenExpiresAt =
+    Date.now() + Math.max(0, data.expires_in - 60) * 1000;
+
+  return cachedAppToken;
+}
 
 async function getUserId(login) {
   if (!login) return null;
 
-  const clientId = process.env.TWITCH_CLIENT_ID;
-  const appToken = await getAppAccessToken();
-
-  if (!clientId) {
-    throw new Error("Falta TWITCH_CLIENT_ID.");
-  }
+  const clientId = process.env.TWITCH_SHOUTOUT_CLIENT_ID;
+  const appToken = await getShoutoutAppAccessToken();
 
   const response = await fetch(
     `https://api.twitch.tv/helix/users?login=${encodeURIComponent(login)}`,
@@ -36,7 +75,7 @@ async function sendShoutout(channelName, target) {
   );
   const userId = await getUserId(target);
 
-  const clientId = process.env.TWITCH_CLIENT_ID;
+  const clientId = process.env.TWITCH_SHOUTOUT_CLIENT_ID;
   const shoutoutToken = process.env.TWITCH_SHOUTOUT_TOKEN;
 
   if (!broadcasterId || !moderatorId || !userId) {
@@ -45,7 +84,7 @@ async function sendShoutout(channelName, target) {
 
   if (!clientId || !shoutoutToken) {
     throw new Error(
-      "Falta TWITCH_CLIENT_ID o TWITCH_SHOUTOUT_TOKEN."
+      "Falta TWITCH_SHOUTOUT_CLIENT_ID o TWITCH_SHOUTOUT_TOKEN."
     );
   }
 
