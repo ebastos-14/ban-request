@@ -180,7 +180,7 @@ export default {
       : null;
 
     if (isTestCommand && !requestedTarget) {
-      await client.say(channel, "Uso: !sotest nombre_del_usuario");
+      await client.say(channel, "cosito");
       return;
     }
 
@@ -217,7 +217,7 @@ export default {
 
       await client.say(
         channel,
-        "No coso, falta el cosito"
+        "No coso, falta el cosito tkn"
       );
     }
   }
