@@ -167,8 +167,22 @@ export default {
     isMod,
     isBroadcaster
   }) {
-    if (message.trim().toLowerCase() !== "!solast") return;
+    const text = String(message ?? "").trim();
+    const parts = text.split(/\s+/);
+    const command = (parts[0] ?? "").toLowerCase();
+
+    if (command !== "!solast" && command !== "!sotest") return;
     if (!isMod && !isBroadcaster) return;
+
+    const isTestCommand = command === "!sotest";
+    const requestedTarget = isTestCommand
+      ? (parts[1] ?? "").replace(/^@/, "").toLowerCase()
+      : null;
+
+    if (isTestCommand && !requestedTarget) {
+      await client.say(channel, "Uso: !sotest nombre_del_usuario");
+      return;
+    }
 
     const targetChannel = String(channelName ?? channel ?? "")
       .replace(/^#/, "")
@@ -179,21 +193,25 @@ export default {
 
     const raid = this.lastRaiderByChannel[targetChannel];
 
-    if (!raid) {
+    if (!isTestCommand && !raid) {
       await client.say(channel, "No hay coso");
       return;
     }
 
+    const targetUser = isTestCommand
+      ? requestedTarget
+      : raid.username;
+
     try {
-      await sendShoutout(targetChannel, raid.username);
+      await sendShoutout(targetChannel, targetUser);
 
       await client.say(
         channel,
-        `Hola ${raid.username}`
+        `Hola ${targetUser}`
       );
     } catch (error) {
       console.error(
-        `[shoutout] Error con !solast en #${targetChannel}:`,
+        `[shoutout] Error con ${command} en #${targetChannel}:`,
         error
       );
 
