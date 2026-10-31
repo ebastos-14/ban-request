@@ -1,113 +1,102 @@
 
-let cachedAppToken = null;
-let appTokenExpiresAt = 0;
+import {
+  getTwitchUserAccessToken
+} from "../../server/twitch-oauth.js";
 
-async function getShoutoutAppAccessToken() {
-  if (cachedAppToken && Date.now() < appTokenExpiresAt) {
-    return cachedAppToken;
-  }
-
-  const clientId = process.env.TWITCH_SHOUTOUT_CLIENT_ID;
-  const clientSecret = process.env.TWITCH_SHOUTOUT_CLIENT_SECRET;
-
-  if (!clientId || !clientSecret) {
-    throw new Error(
-      "Faltan TWITCH_SHOUTOUT_CLIENT_ID o TWITCH_SHOUTOUT_CLIENT_SECRET."
-    );
-  }
-
-  const response = await fetch("https://id.twitch.tv/oauth2/token", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded"
-    },
-    body: new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
-      grant_type: "client_credentials"
-    })
-  });
-
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(
-      `Error al obtener token de aplicación para Shoutout: HTTP ${response.status}. ${detail}`
-    );
-  }
-
-  const data = await response.json();
-
-  cachedAppToken = data.access_token;
-  appTokenExpiresAt =
-    Date.now() + Math.max(0, data.expires_in - 60) * 1000;
-
-  return cachedAppToken;
-}
-
+/**
+ * Obtener ID de un usuario de Twitch.
+ */
 async function getUserId(login) {
   if (!login) return null;
 
-  const clientId = process.env.TWITCH_SHOUTOUT_CLIENT_ID;
-  const appToken = await getShoutoutAppAccessToken();
+  const accessToken = await getTwitchUserAccessToken();
 
   const response = await fetch(
     `https://api.twitch.tv/helix/users?login=${encodeURIComponent(login)}`,
     {
       headers: {
-        "Client-ID": clientId,
-        "Authorization": `Bearer ${appToken}`
+        "Client-ID": process.env.TWITCH_BOT_CLIENT_ID,
+        Authorization: `Bearer ${accessToken}`
       }
     }
   );
 
   if (!response.ok) {
-    throw new Error(`Twitch users API: ${response.status}`);
+    const detail = await response.text();
+
+    throw new Error(
+      `Twitch Users API ${response.status}: ${detail}`
+    );
   }
 
   const json = await response.json();
+
   return json.data?.[0]?.id ?? null;
 }
 
-async function sendShoutout(channelName, target) {
-  const broadcasterId = await getUserId(channelName);
-  const moderatorId = await getUserId(
-    process.env.TWITCH_BOT_USERNAME
-  );
-  const userId = await getUserId(target);
+/**
+ * Enviar Shoutout oficial mediante Twitch API.
+ */
+async function sendShoutout(channelName, targetUsername) {
+  const botUsername = process.env.TWITCH_BOT_USERNAME;
+  const clientId = process.env.TWITCH_BOT_CLIENT_ID;
 
-  const clientId = process.env.TWITCH_SHOUTOUT_CLIENT_ID;
-  const shoutoutToken = process.env.TWITCH_SHOUTOUT_TOKEN;
-
-  if (!broadcasterId || !moderatorId || !userId) {
-    throw new Error("No se pudo encontrar un ID de Twitch.");
-  }
-
-  if (!clientId || !shoutoutToken) {
+  if (!botUsername || !clientId) {
     throw new Error(
-      "Falta TWITCH_SHOUTOUT_CLIENT_ID o TWITCH_SHOUTOUT_TOKEN."
+      "Falta TWITCH_BOT_USERNAME o TWITCH_BOT_CLIENT_ID en Render."
     );
   }
+
+  const [
+    broadcasterId,
+    moderatorId,
+    targetId
+  ] = await Promise.all([
+    getUserId(channelName),
+    getUserId(botUsername),
+    getUserId(targetUsername)
+  ]);
+
+  if (!broadcasterId || !moderatorId || !targetId) {
+    throw new Error(
+      "No se pudo encontrar el ID de uno de los canales de Twitch."
+    );
+  }
+
+  const accessToken = await getTwitchUserAccessToken();
 
   const url = new URL(
     "https://api.twitch.tv/helix/chat/shoutouts"
   );
 
-  url.searchParams.set("from_broadcaster_id", broadcasterId);
-  url.searchParams.set("to_broadcaster_id", userId);
-  url.searchParams.set("moderator_id", moderatorId);
+  url.searchParams.set(
+    "from_broadcaster_id",
+    broadcasterId
+  );
+
+  url.searchParams.set(
+    "to_broadcaster_id",
+    targetId
+  );
+
+  url.searchParams.set(
+    "moderator_id",
+    moderatorId
+  );
 
   const response = await fetch(url, {
     method: "POST",
     headers: {
       "Client-ID": clientId,
-      "Authorization": `Bearer ${shoutoutToken}`
+      Authorization: `Bearer ${accessToken}`
     }
   });
 
   if (response.status !== 204) {
     const detail = await response.text();
+
     throw new Error(
-      `Twitch Shoutout API: ${response.status} ${detail}`
+      `Twitch Shoutout API ${response.status}: ${detail}`
     );
   }
 }
@@ -115,11 +104,19 @@ async function sendShoutout(channelName, target) {
 export default {
   name: "shoutout",
   enabled: true,
-  channels: ["ebastos14", "jaciitv", "boteb14"],
+  channels: ["ebastos14_", "jaciitv"],
 
   lastRaiderByChannel: {},
 
-  async handleRaid({ client, channel, username, viewers }) {
+  /**
+   * Registrar la última raid recibida.
+   */
+  async handleRaid({
+    client,
+    channel,
+    username,
+    viewers
+  }) {
     const targetChannel = String(channel ?? "")
       .replace(/^#/, "")
       .trim()
@@ -132,10 +129,17 @@ export default {
 
     const count = Number(viewers);
 
-    if (!this.channels.includes(targetChannel) || !raider) return;
+    if (
+      !this.channels.includes(targetChannel) ||
+      !raider
+    ) {
+      return;
+    }
 
     const viewerCount =
-      Number.isFinite(count) && count >= 0 ? count : 0;
+      Number.isFinite(count) && count >= 0
+        ? count
+        : 0;
 
     this.lastRaiderByChannel[targetChannel] = {
       username: raider,
@@ -146,78 +150,86 @@ export default {
       `[shoutout] Raid en #${targetChannel}: ${raider}, espectadores=${viewerCount}`
     );
 
-    if (viewerCount >= 1 && viewerCount <= 39) {
+    // Respuestas de prueba según espectadores.
+    if (viewerCount >= 1 && viewerCount <= 19) {
       await client.say(
         `#${targetChannel}`,
-        `/me Raid de ${raider} jaciitMatecito`
+        `test0 ${viewerCount}`
+      );
+    } else if (
+      viewerCount >= 20 &&
+      viewerCount <= 39
+    ) {
+      await client.say(
+        `#${targetChannel}`,
+        `test1 ${viewerCount}`
       );
     } else if (viewerCount >= 40) {
       await client.say(
         `#${targetChannel}`,
-        `/me Ojito esa raid ameising doble guatafak jaciitMatecito jaciitMatecito`
+        `test2 ${viewerCount}`
       );
     }
   },
 
+  /**
+   * Comando !solast exclusivo para moderadores.
+   */
   async handleMessage({
     client,
     channel,
-    channelName,
     message,
     isMod,
     isBroadcaster
   }) {
-    const text = String(message ?? "").trim();
-    const parts = text.split(/\s+/);
-    const command = (parts[0] ?? "").toLowerCase();
-
-    if (command !== "!solast" && command !== "!sotest") return;
-    if (!isMod && !isBroadcaster) return;
-
-    const isTestCommand = command === "!sotest";
-    const requestedTarget = isTestCommand
-      ? (parts[1] ?? "").replace(/^@/, "").toLowerCase()
-      : null;
-
-    if (isTestCommand && !requestedTarget) {
-      await client.say(channel, "cosito");
+    if (
+      String(message ?? "").trim().toLowerCase() !==
+      "!solast"
+    ) {
       return;
     }
 
-    const targetChannel = String(channelName ?? channel ?? "")
+    if (!isMod && !isBroadcaster) return;
+
+    const targetChannel = String(channel ?? "")
       .replace(/^#/, "")
       .trim()
       .toLowerCase();
 
     if (!this.channels.includes(targetChannel)) return;
 
-    const raid = this.lastRaiderByChannel[targetChannel];
+    const raid =
+      this.lastRaiderByChannel[targetChannel];
 
-    if (!isTestCommand && !raid) {
-      await client.say(channel, "No hay coso");
+    if (!raid) {
+      await client.say(
+        channel,
+        "No hay coso reciente"
+      );
+
       return;
     }
 
-    const targetUser = isTestCommand
-      ? requestedTarget
-      : raid.username;
-
     try {
-      await sendShoutout(targetChannel, targetUser);
+      await sendShoutout(
+        targetChannel,
+        raid.username
+      );
 
       await client.say(
         channel,
-        `Hola ${targetUser}`
+        `Hola ${raid.username}`
       );
+
     } catch (error) {
       console.error(
-        `[shoutout] Error con ${command} en #${targetChannel}:`,
+        `[shoutout] Error en #${targetChannel}:`,
         error
       );
 
       await client.say(
         channel,
-        "No coso, falta el cosito tkn"
+        "No coso, falta el cosito"
       );
     }
   }
