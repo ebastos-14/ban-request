@@ -1,9 +1,7 @@
-
 import "dotenv/config";
 import express from "express";
 import tmi from "tmi.js";
 import { loadModules } from "./module-hub.js";
-import { registerTwitchOAuthRoutes } from "./twitch-oauth.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -13,9 +11,6 @@ let twitchConnected = false;
 let twitchConnectedAt = null;
 let twitchDisconnectedAt = null;
 let twitchReconnectAttempts = 0;
-
-// Rutas para autorizar BotEB14 y renovar sus tokens OAuth.
-registerTwitchOAuthRoutes(app);
 
 // Página principal
 app.get("/", (req, res) => {
@@ -37,6 +32,7 @@ app.get("/health", (req, res) => {
   };
 
   // El servidor HTTP está vivo aunque Twitch se desconecte.
+  // UptimeRobot comprueba el servidor, no la conexión con Twitch.
   res.status(200).json(health);
 });
 
@@ -62,10 +58,8 @@ function normalizeChannel(channel) {
     .toLowerCase();
 }
 
-// Cargar módulos automáticamente
 const modules = await loadModules();
 
-// Obtener canales de todos los módulos habilitados
 const channels = [
   ...new Set(
     modules
@@ -83,11 +77,8 @@ if (channels.length === 0) {
   process.exit(1);
 }
 
-// Cliente de Twitch
 const client = new tmi.Client({
-  options: {
-    debug: false
-  },
+  options: { debug: false },
   identity: {
     username: BOT_USERNAME,
     password: OAUTH_TOKEN
@@ -102,11 +93,7 @@ client.on("connected", (address, port) => {
   twitchDisconnectedAt = null;
 
   console.log(`Conectado a Twitch en ${address}:${port}`);
-
-  console.log(
-    `Canales: ${channels.map((channel) => `#${channel}`).join(", ")}`
-  );
-
+  console.log(`Canales: ${channels.map((channel) => `#${channel}`).join(", ")}`);
   console.log(
     `Módulos cargados: ${modules
       .map((module) => module.name ?? "sin nombre")
@@ -119,9 +106,7 @@ client.on("disconnected", (reason) => {
   twitchConnected = false;
   twitchDisconnectedAt = new Date().toISOString();
 
-  console.warn(
-    `[Twitch] Desconectado: ${reason ?? "motivo desconocido"}`
-  );
+  console.warn(`[Twitch] Desconectado: ${reason ?? "motivo desconocido"}`);
 });
 
 // Mensajes de chat
@@ -130,10 +115,7 @@ client.on("message", async (rawChannel, tags, rawMessage, self) => {
 
   const channel = normalizeChannel(rawChannel);
   const username = (tags.username ?? "").toLowerCase();
-
-  const message = String(rawMessage ?? "")
-    .trim()
-    .replace(/\s+/g, " ");
+  const message = String(rawMessage ?? "").trim().replace(/\s+/g, " ");
 
   if (!message) return;
 
@@ -153,9 +135,7 @@ client.on("message", async (rawChannel, tags, rawMessage, self) => {
   for (const module of modules) {
     if (module.enabled === false) continue;
 
-    const allowedChannels = (module.channels ?? [])
-      .map(normalizeChannel);
-
+    const allowedChannels = (module.channels ?? []).map(normalizeChannel);
     if (!allowedChannels.includes(channel)) continue;
 
     try {
@@ -188,23 +168,13 @@ client.on("raided", async (rawChannel, username, viewers) => {
     if (module.enabled === false) continue;
     if (typeof module.handleRaid !== "function") continue;
 
-    const allowedChannels = (module.channels ?? [])
-      .map(normalizeChannel);
-
+    const allowedChannels = (module.channels ?? []).map(normalizeChannel);
     if (!allowedChannels.includes(channel)) continue;
 
     try {
-      await module.handleRaid({
-        channel,
-        username,
-        viewers,
-        client
-      });
+      await module.handleRaid({ channel, username, viewers, client });
     } catch (error) {
-      console.error(
-        `[${module.name}] Error al procesar raid:`,
-        error
-      );
+      console.error(`[${module.name}] Error al procesar raid:`, error);
     }
   }
 });
@@ -214,12 +184,7 @@ try {
   await client.connect();
 } catch (error) {
   twitchConnected = false;
-
-  console.error(
-    "No se pudo conectar a Twitch:",
-    error
-  );
-
+  console.error("No se pudo conectar a Twitch:", error);
   process.exit(1);
 }
 
@@ -228,7 +193,6 @@ let shuttingDown = false;
 
 async function shutdown() {
   if (shuttingDown) return;
-
   shuttingDown = true;
 
   console.log("Cerrando conexión...");
