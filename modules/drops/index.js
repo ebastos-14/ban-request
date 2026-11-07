@@ -82,7 +82,7 @@ export default {
   name: "drops",
   enabled: true,
 
-  channels: ["ebastos14", "jaciitv"],
+  channels: ["ebastos14"],
 
   async handleMessage({ client, channel, channelName, message }) {
     if (message.trim().toLowerCase() !== "!dropscoso") return;
