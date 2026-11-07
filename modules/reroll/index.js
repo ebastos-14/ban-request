@@ -3,7 +3,7 @@ export default {
   name: "sorteotv",
   enabled: true,
 
-  channels: ["ebastos14", "jaciitv"],
+  channels: ["ebastos14"],
 
   states: {},
   timers: {},
