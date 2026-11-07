@@ -115,7 +115,7 @@ async function sendShoutout(channelName, target) {
 export default {
   name: "shoutout",
   enabled: true,
-  channels: ["ebastos14", "jaciitv", "boteb14"],
+  channels: ["ebastos14", "boteb14"],
 
   lastRaiderByChannel: {},
 
